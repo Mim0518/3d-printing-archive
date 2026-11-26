@@ -13,14 +13,7 @@ use serde_json::{Value, json};
 use tower::ServiceExt;
 
 fn config(estaticos: Option<PathBuf>) -> Config {
-    Config {
-        direccion: "127.0.0.1:0".parse().unwrap(),
-        base: ":memory:".into(),
-        estaticos,
-        cookie_segura: false,
-        dias_sesion: 30,
-        biblioteca: None,
-    }
+    Config::de_prueba(None, estaticos)
 }
 
 async fn app_con_usuario() -> Router {

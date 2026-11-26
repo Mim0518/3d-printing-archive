@@ -3,6 +3,7 @@
 mod auth;
 mod catalogo;
 mod edicion;
+mod miniaturas;
 mod mudanzas;
 mod trabajos;
 
@@ -15,6 +16,7 @@ pub fn api() -> Router<AppState> {
         .merge(auth::rutas())
         .merge(catalogo::rutas())
         .merge(edicion::rutas())
+        .merge(miniaturas::rutas())
         .merge(mudanzas::rutas())
         .merge(trabajos::rutas())
         .fallback(|| async { ApiError::NoEncontrado })

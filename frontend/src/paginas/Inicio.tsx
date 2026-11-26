@@ -14,13 +14,62 @@ import {
   Title,
 } from '@mantine/core'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 
 import { api } from '../api'
 import { COLOR_TIPO, cuando, n, tamano } from '../formato'
 import { useYo } from '../sesion'
-import type { Resumen, Trabajo } from '../tipos'
+import { useTrabajo } from '../trabajo'
+import type { Resumen, ResumenMiniaturas, Trabajo } from '../tipos'
+
+function Miniaturas() {
+  const qc = useQueryClient()
+  const r = useQuery({ queryKey: ['miniaturas'], queryFn: () => api<ResumenMiniaturas>('/miniaturas/resumen') })
+  const [propio, setPropio] = useState<number | null>(null)
+  const generar = useMutation({
+    mutationFn: () => api<{ trabajo_id: number }>('/miniaturas', { method: 'POST' }),
+    onSuccess: (x) => setPropio(x.trabajo_id),
+  })
+  const t = useTrabajo(r.data?.en_curso ?? propio)
+  const estado = t.data?.estado
+  useEffect(() => {
+    if (estado && estado !== 'en_curso') void qc.invalidateQueries({ queryKey: ['miniaturas'] })
+  }, [estado, qc])
+  const d = r.data
+  if (!d) return null
+  const enCurso = t.data?.estado === 'en_curso'
+  const hechas = d.con_miniatura + d.errores
+  return (
+    <Card withBorder>
+      <Group justify="space-between" align="flex-start">
+        <div>
+          <Text fw={500}>Miniaturas</Text>
+          <Text size="sm" c="dimmed">
+            {n(d.con_miniatura)} de {n(d.archivos)} mallas e imágenes
+            {d.errores > 0 && ` · ${n(d.errores)} no se pudieron`}
+          </Text>
+        </div>
+        {d.pendientes > 0 && (
+          <Button variant="light" loading={generar.isPending || enCurso} onClick={() => generar.mutate()}>
+            Generar las {n(d.pendientes)} que faltan
+          </Button>
+        )}
+      </Group>
+      <Progress value={d.archivos ? (hechas * 100) / d.archivos : 0} mt="sm" />
+      {enCurso && (
+        <Text size="sm" c="dimmed" mt={4}>
+          Generando… {n(t.data?.progreso ?? 0)} de {n(d.pendientes)} en este trabajo. Puedes seguir usando la app.
+        </Text>
+      )}
+      {generar.error && (
+        <Alert color="red" variant="light" mt="sm">
+          {generar.error.message}
+        </Alert>
+      )}
+    </Card>
+  )
+}
 
 function Dato({ titulo, valor, detalle }: { titulo: string; valor: string; detalle?: string }) {
   return (
@@ -94,7 +143,7 @@ function Escaneo({ resumen }: { resumen: Resumen }) {
         <Text size="sm" mt="sm">
           Listo: {n(t.resultado.archivos ?? 0)} archivos · {n(t.resultado.nuevos ?? 0)} nuevos ·{' '}
           {n(t.resultado.cambiados ?? 0)} cambiados · {n(t.resultado.faltan ?? 0)} ya no están
-          {t.resultado.errores.length > 0 && ` · ${t.resultado.errores.length} errores`}
+          {(t.resultado.errores?.length ?? 0) > 0 && ` · ${t.resultado.errores?.length} errores`}
         </Text>
       )}
       {t && t.estado === 'fallo' && (
@@ -134,6 +183,7 @@ export default function Inicio() {
       </SimpleGrid>
 
       <Escaneo resumen={d} />
+      <Miniaturas />
 
       <SimpleGrid cols={{ base: 1, md: 2 }}>
         <Card withBorder>

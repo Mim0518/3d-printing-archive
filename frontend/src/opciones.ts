@@ -28,3 +28,6 @@ export const ESTADO_MUDANZA: Record<string, { texto: string; color: string }> = 
   deshecha: { texto: 'deshecha', color: 'gray' },
   descartada: { texto: 'descartada', color: 'gray' },
 }
+
+/** Formatos que abre el visor 3D. */
+export const VISIBLES_3D = ['stl', 'obj', '3mf', 'ply']

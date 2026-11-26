@@ -188,3 +188,52 @@ pub async fn iniciar_escaneo(
     });
     Ok(id)
 }
+
+/// Genera miniaturas en segundo plano (de todo o de los modelos indicados). No corre junto con otro trabajo.
+pub async fn iniciar_miniaturas(
+    pool: SqlitePool,
+    trabajos: Arc<Trabajos>,
+    opciones: crate::miniaturas::Opciones,
+    modelo_ids: Option<Vec<i64>>,
+    forzar: bool,
+) -> Result<i64, ApiError> {
+    alguno_en_curso(&pool).await?;
+    let detalle = match &modelo_ids {
+        Some(ids) => format!("{} modelos", ids.len()),
+        None => "toda la colección".to_string(),
+    };
+    let id: i64 = sqlx::query_scalar(
+        "INSERT INTO trabajos (tipo, estado, detalle, creado) VALUES ('miniaturas', 'en_curso', ?, ?) RETURNING id",
+    )
+    .bind(&detalle)
+    .bind(ahora())
+    .fetch_one(&pool)
+    .await?;
+    let progreso = trabajos.registrar(id);
+    tokio::spawn(async move {
+        let r = crate::miniaturas::generar(&pool, opciones, modelo_ids, forzar, progreso).await;
+        let (estado, det, resultado) = match r {
+            Ok(res) => (
+                "terminado",
+                detalle,
+                serde_json::to_string(&res).unwrap_or_default(),
+            ),
+            Err(e) => {
+                tracing::error!("miniaturas: {e:#}");
+                ("fallo", format!("{e:#}"), String::new())
+            }
+        };
+        let _ = sqlx::query(
+            "UPDATE trabajos SET estado = ?, detalle = ?, resultado = ?, terminado = ? WHERE id = ?",
+        )
+        .bind(estado)
+        .bind(det)
+        .bind(resultado)
+        .bind(ahora())
+        .bind(id)
+        .execute(&pool)
+        .await;
+        trabajos.quitar(id);
+    });
+    Ok(id)
+}

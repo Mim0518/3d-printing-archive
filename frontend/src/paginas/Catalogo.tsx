@@ -23,6 +23,7 @@ import { useNavigate, useSearchParams } from 'react-router'
 
 import { api } from '../api'
 import EdicionLote from '../componentes/EdicionLote'
+import Miniatura from '../componentes/Miniatura'
 import { n, tamano, titulo } from '../formato'
 import type { ListaModelos, OpcionesFiltros } from '../tipos'
 
@@ -223,6 +224,7 @@ export default function Catalogo() {
                     }
                   />
                 </Table.Th>
+                <Table.Th w={60} />
                 <Table.Th>Modelo</Table.Th>
                 <Table.Th>Facción / tipo</Table.Th>
                 <Table.Th>Estudio</Table.Th>
@@ -236,6 +238,13 @@ export default function Catalogo() {
                 <Table.Tr key={m.id} onClick={() => navegar(`/catalogo/${m.id}`)} style={{ cursor: 'pointer' }}>
                   <Table.Td onClick={(e) => e.stopPropagation()}>
                     <Checkbox aria-label="Seleccionar" checked={seleccion.has(m.id)} onChange={() => alternar(m.id)} />
+                  </Table.Td>
+                  <Table.Td>
+                    {m.portada ? (
+                      <Miniatura archivoId={m.portada.id} clave={m.portada.clave} lado={48} />
+                    ) : (
+                      <Miniatura archivoId={0} clave={null} lado={48} tipo="otro" ext="" />
+                    )}
                   </Table.Td>
                   <Table.Td>
                     <Text size="sm" fw={500}>

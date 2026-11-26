@@ -24,7 +24,11 @@ import { Link, useNavigate, useParams } from 'react-router'
 
 import { api } from '../api'
 import EditorModelo from '../componentes/EditorModelo'
+import Galeria from '../componentes/Galeria'
+import Miniatura from '../componentes/Miniatura'
+import VisorModal from '../componentes/VisorModal'
 import { COLOR_TIPO, cuando, n, tamano, titulo } from '../formato'
+import { VISIBLES_3D } from '../opciones'
 import type { ArchivoFila, Cambio, Ficha, Plan } from '../tipos'
 
 const NOMBRE_CAMPO: Record<string, string> = {
@@ -100,6 +104,7 @@ export default function Modelo() {
   const { id } = useParams()
   const [tipo, setTipo] = useState('todos')
   const [editando, setEditando] = useState(false)
+  const [viendo, setViendo] = useState<ArchivoFila | null>(null)
   const navegar = useNavigate()
   const f = useQuery({ queryKey: ['modelo', id], queryFn: () => api<Ficha>(`/modelos/${id}`) })
   const mover = useMutation({
@@ -140,6 +145,10 @@ export default function Modelo() {
       </Breadcrumbs>
 
       <Group justify="space-between" align="flex-start" wrap="nowrap">
+      <Group align="flex-start" wrap="nowrap">
+      {m.portada && (
+        <Miniatura archivoId={m.portada.id} clave={m.portada.clave} tamano={512} lado={140} />
+      )}
       <div>
         <Title order={2}>
           {titulo(m)}
@@ -170,6 +179,7 @@ export default function Modelo() {
           )}
         </Group>
       </div>
+      </Group>
         {!editando && (
           <Button variant="light" onClick={() => setEditando(true)}>
             Editar
@@ -231,6 +241,8 @@ export default function Modelo() {
         )}
       </Card>
 
+      <Galeria modelo={m} ver={setViendo} />
+
       <Card withBorder>
         <Group justify="space-between" mb="xs" wrap="wrap">
           <Text fw={500}>Archivos</Text>
@@ -252,6 +264,7 @@ export default function Modelo() {
           <Table striped miw={600}>
             <Table.Thead>
               <Table.Tr>
+                <Table.Th w={48} />
                 <Table.Th>Archivo</Table.Th>
                 <Table.Th miw={72}>Tipo</Table.Th>
                 <Table.Th ta="right">Tamaño</Table.Th>
@@ -260,7 +273,19 @@ export default function Modelo() {
             </Table.Thead>
             <Table.Tbody>
               {archivos.slice(0, MAX).map((a) => (
-                <Table.Tr key={a.id} c={a.estado === 'falta' ? 'red' : undefined}>
+                <Table.Tr
+                  key={a.id}
+                  c={a.estado === 'falta' ? 'red' : undefined}
+                  onClick={
+                    a.estado === 'presente' && (a.tipo === 'imagen' || VISIBLES_3D.includes(a.ext))
+                      ? () => setViendo(a)
+                      : undefined
+                  }
+                  style={a.estado === 'presente' && (a.tipo === 'imagen' || VISIBLES_3D.includes(a.ext)) ? { cursor: 'pointer' } : undefined}
+                >
+                  <Table.Td>
+                    <Miniatura archivoId={a.id} clave={a.miniatura} lado={36} tipo={a.tipo} ext={a.ext} />
+                  </Table.Td>
                   <Table.Td>
                     <Text size="sm" style={{ wordBreak: 'break-all' }}>
                       {relativa(a, m.carpeta)}
@@ -350,6 +375,7 @@ export default function Modelo() {
       )}
 
       <Historial id={m.id} />
+      <VisorModal archivo={viendo} cerrar={() => setViendo(null)} />
     </Stack>
   )
 }

@@ -76,14 +76,7 @@ async fn preparar(nombre: &str) -> (Juguete, SqlitePool, Router, String) {
         .await
         .unwrap();
     catalogo::importar_catalogo(&pool, &csv).await.unwrap();
-    let config = Config {
-        direccion: "127.0.0.1:0".parse().unwrap(),
-        base: ":memory:".into(),
-        estaticos: None,
-        cookie_segura: false,
-        dias_sesion: 30,
-        biblioteca: Some(raiz.clone()),
-    };
+    let config = Config::de_prueba(Some(raiz.clone()), None);
     let app = app(AppState::new(pool.clone(), config));
     let res = app
         .clone()

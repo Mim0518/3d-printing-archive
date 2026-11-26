@@ -9,6 +9,7 @@ pub mod error;
 pub mod estructura;
 pub mod frio;
 pub mod inventario;
+pub mod miniaturas;
 pub mod mudanzas;
 pub mod rutas;
 pub mod trabajos;

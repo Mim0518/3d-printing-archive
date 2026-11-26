@@ -23,6 +23,38 @@ pub fn rutas() -> Router<AppState> {
 
 const SEP: char = '\u{1f}';
 
+/// Columnas de un modelo en la lista y en la ficha (la portada se calcula: ver `miniaturas::SQL_PORTADA`).
+static SELECT_MODELO: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
+    format!(
+        "SELECT m.id, m.carpeta, m.juego, m.faccion, m.nombre, m.estudio, m.subcarpeta, m.confianza, m.revisado,
+                m.n_archivos, m.n_mallas, m.bytes, m.n_frio, m.bytes_frio, m.ruta_nueva, m.pendiente, m.n_avisos,
+                {} AS portada_id,
+                (SELECT group_concat(e.nombre, char(31)) FROM modelo_etiquetas me
+                 JOIN etiquetas e ON e.id = me.etiqueta_id WHERE me.modelo_id = m.id) AS etiquetas_txt",
+        crate::miniaturas::SQL_PORTADA
+    )
+});
+
+/// `{ id, clave }` de las portadas (la clave va en la URL de la miniatura para que el navegador la guarde).
+async fn portadas(
+    pool: &sqlx::SqlitePool,
+    ids: &[i64],
+) -> Result<std::collections::HashMap<i64, String>, sqlx::Error> {
+    if ids.is_empty() {
+        return Ok(Default::default());
+    }
+    let mut qb: QueryBuilder<Sqlite> = QueryBuilder::new(
+        "SELECT archivo_id, clave FROM miniaturas WHERE estado = 'ok' AND archivo_id IN (",
+    );
+    let mut sep = qb.separated(", ");
+    for id in ids {
+        sep.push_bind(*id);
+    }
+    qb.push(")");
+    let filas: Vec<(i64, String)> = qb.build_query_as().fetch_all(pool).await?;
+    Ok(filas.into_iter().collect())
+}
+
 fn etiquetas_de(s: Option<String>) -> Vec<String> {
     s.map(|s| s.split(SEP).map(str::to_string).collect())
         .unwrap_or_default()
@@ -150,6 +182,8 @@ struct FilaModelo {
     pendiente: bool,
     n_avisos: i64,
     #[serde(skip)]
+    portada_id: Option<i64>,
+    #[serde(skip)]
     etiquetas_txt: Option<String>,
 }
 
@@ -220,13 +254,8 @@ async fn lista(
     condiciones(&mut cuenta, &f);
     let total: i64 = cuenta.build_query_scalar().fetch_one(&st.pool).await?;
 
-    let mut qb: QueryBuilder<Sqlite> = QueryBuilder::new(
-        "SELECT m.id, m.carpeta, m.juego, m.faccion, m.nombre, m.estudio, m.subcarpeta, m.confianza, m.revisado,
-                m.n_archivos, m.n_mallas, m.bytes, m.n_frio, m.bytes_frio, m.ruta_nueva, m.pendiente, m.n_avisos,
-                (SELECT group_concat(e.nombre, char(31)) FROM modelo_etiquetas me
-                 JOIN etiquetas e ON e.id = me.etiqueta_id WHERE me.modelo_id = m.id) AS etiquetas_txt
-         FROM modelos m",
-    );
+    let mut qb: QueryBuilder<Sqlite> =
+        QueryBuilder::new(format!("{} FROM modelos m", *SELECT_MODELO));
     condiciones(&mut qb, &f);
     qb.push(match no_vacio(&f.orden) {
         Some("tamano") => " ORDER BY m.bytes DESC, m.nombre",
@@ -239,12 +268,18 @@ async fn lista(
         .push(" OFFSET ")
         .push_bind((pagina - 1) * por_pagina);
     let filas: Vec<FilaModelo> = qb.build_query_as().fetch_all(&st.pool).await?;
+    let ids: Vec<i64> = filas.iter().filter_map(|m| m.portada_id).collect();
+    let claves = portadas(&st.pool, &ids).await?;
     let modelos: Vec<Value> = filas
         .into_iter()
         .map(|mut m| {
             let et = etiquetas_de(m.etiquetas_txt.take());
             let mut v = serde_json::to_value(&m).unwrap_or(Value::Null);
             v["etiquetas"] = json!(et);
+            v["portada"] = match m.portada_id.and_then(|p| claves.get(&p).map(|c| (p, c))) {
+                Some((p, c)) => json!({ "id": p, "clave": c }),
+                None => Value::Null,
+            };
             v
         })
         .collect();
@@ -298,6 +333,7 @@ struct FilaArchivo {
     stl_formato: Option<String>,
     triangulos: Option<i64>,
     estado: String,
+    miniatura: Option<String>,
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -318,13 +354,10 @@ async fn ficha(
     Path(id): Path<i64>,
 ) -> Result<Json<Value>, ApiError> {
     let p = &st.pool;
-    let m: Option<FilaModelo> = sqlx::query_as(
-        "SELECT m.id, m.carpeta, m.juego, m.faccion, m.nombre, m.estudio, m.subcarpeta, m.confianza, m.revisado,
-                m.n_archivos, m.n_mallas, m.bytes, m.n_frio, m.bytes_frio, m.ruta_nueva, m.pendiente, m.n_avisos,
-                (SELECT group_concat(e.nombre, char(31)) FROM modelo_etiquetas me
-                 JOIN etiquetas e ON e.id = me.etiqueta_id WHERE me.modelo_id = m.id) AS etiquetas_txt
-         FROM modelos m WHERE m.id = ?",
-    )
+    let m: Option<FilaModelo> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
+        "{} FROM modelos m WHERE m.id = ?",
+        *SELECT_MODELO
+    )))
     .bind(id)
     .fetch_optional(p)
     .await?;
@@ -336,8 +369,10 @@ async fn ficha(
         .fetch_one(p)
         .await?;
     let archivos: Vec<FilaArchivo> = sqlx::query_as(
-        "SELECT id, ruta, nombre, ext, tipo, bytes, nlink, stl_formato, triangulos, estado
-         FROM archivos WHERE modelo_id = ? ORDER BY ruta LIMIT 20000",
+        "SELECT a.id, a.ruta, a.nombre, a.ext, a.tipo, a.bytes, a.nlink, a.stl_formato, a.triangulos, a.estado,
+                mi.clave AS miniatura
+         FROM archivos a LEFT JOIN miniaturas mi ON mi.archivo_id = a.id AND mi.estado = 'ok'
+         WHERE a.modelo_id = ? ORDER BY a.ruta LIMIT 20000",
     )
     .bind(id)
     .fetch_all(p)
@@ -359,6 +394,17 @@ async fn ficha(
         let et = edicion::etiquetas_de(p, id).await?;
         v["avisos"] = json!(edicion::avisos(&c, &et));
     }
+    let claves = portadas(p, &m.portada_id.into_iter().collect::<Vec<_>>()).await?;
+    v["portada"] = match m.portada_id.and_then(|x| claves.get(&x).map(|c| (x, c))) {
+        Some((x, c)) => json!({ "id": x, "clave": c }),
+        None => Value::Null,
+    };
+    v["portada_elegida"] = json!(
+        sqlx::query_scalar::<_, Option<i64>>("SELECT portada_archivo_id FROM modelos WHERE id = ?")
+            .bind(id)
+            .fetch_one(p)
+            .await?
+    );
     v["archivos"] = json!(archivos);
     v["copias_frio"] = json!(copias);
     Ok(Json(v))

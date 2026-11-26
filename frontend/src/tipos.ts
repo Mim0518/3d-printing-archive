@@ -30,6 +30,7 @@ export interface ModeloFila {
   pendiente: boolean
   n_avisos: number
   etiquetas: string[]
+  portada: { id: number; clave: string } | null
 }
 
 export interface ListaModelos {
@@ -57,6 +58,7 @@ export interface ArchivoFila {
   stl_formato: string | null
   triangulos: number | null
   estado: 'presente' | 'falta'
+  miniatura: string | null
 }
 
 export interface CopiaFrio {
@@ -72,6 +74,7 @@ export interface CopiaFrio {
 
 export interface Ficha extends ModeloFila {
   notas: string
+  portada_elegida: number | null
   avisos: string[]
   archivos: ArchivoFila[]
   copias_frio: CopiaFrio[]
@@ -140,6 +143,14 @@ export interface MudanzaDetalle {
   muestra: { de: string; a: string }[]
 }
 
+export interface ResumenMiniaturas {
+  archivos: number
+  con_miniatura: number
+  errores: number
+  pendientes: number
+  en_curso: number | null
+}
+
 export interface Trabajo {
   id: number
   tipo: string
@@ -153,7 +164,12 @@ export interface Trabajo {
     faltan?: number
     movidos?: number
     carpetas_quitadas?: number
-    errores: string[]
+    candidatos?: number
+    ya_estaban?: number
+    generadas?: number
+    fallidas?: number
+    ejemplos_de_error?: string[]
+    errores?: string[]
   } | null
   creado: number
   terminado: number | null

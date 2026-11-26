@@ -12,7 +12,13 @@ Equipo: Lenovo ThinkCentre M920q, con Ubuntu Server 24.04 LTS en un NVMe de 2 TB
    curl -fsSL https://tailscale.com/install.sh | sh
    sudo tailscale up
    ```
-3. Crea el usuario del servicio y sus carpetas:
+3. Instala f3d 3.x para las miniaturas. La versión de apt es más vieja, así que usa el paquete de
+   https://f3d.app (pestaña Download, .deb para Linux). Renderiza sin pantalla con EGL y necesita los
+   controladores de Mesa (`sudo apt install libegl1 libgl1-mesa-dri`). Pruébalo con:
+   ```bash
+   f3d --output=/tmp/prueba.png --resolution=512,512 --no-background un-modelo.stl && ls -la /tmp/prueba.png
+   ```
+4. Crea el usuario del servicio y sus carpetas:
    ```bash
    sudo useradd --system --home /var/lib/printing-archive --shell /usr/sbin/nologin archivo
    sudo install -d -o archivo -g archivo /var/lib/printing-archive

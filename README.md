@@ -13,11 +13,11 @@ Tecnología:
 - Backend: Rust (Axum + SQLite). Frontend: React + Vite + TypeScript (Mantine).
 - Corre en un mini PC en casa; desde fuera se entra por Tailscale.
 
-Estado: **fase 2** (el catálogo se edita en la app: campos, etiquetas, edición de varios a la vez, avisos de las reglas de nombres, historial, exportación a CSV y mudanzas de carpetas con plan y deshacer). Ver la [especificación](docs/especificacion.md) y la [guía de instalación](deploy/README.md).
+Estado: **fase 3** (miniaturas de todas las mallas e imágenes con f3d, portada de cada modelo, galería y visor 3D en el navegador; antes: catálogo editable con etiquetas, historial y mudanzas con deshacer). Ver la [especificación](docs/especificacion.md) y la [guía de instalación](deploy/README.md).
 
 ## Desarrollo
 
-Necesitas Rust (edición 2024) y Node 22.
+Necesitas Rust (edición 2024), Node 22 y, para las miniaturas, [f3d](https://f3d.app) 3.x.
 
 ```bash
 # 1. Crea tu usuario en la base de desarrollo (backend/datos/archivo.db)

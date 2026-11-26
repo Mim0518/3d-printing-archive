@@ -18,6 +18,12 @@ pub struct Config {
     pub dias_sesion: i64,
     /// Carpeta de la colección (biblioteca principal). En el mini PC, `/srv/3dp`.
     pub biblioteca: Option<PathBuf>,
+    /// Caché de miniaturas.
+    pub miniaturas: PathBuf,
+    /// Programa para renderizar mallas (f3d).
+    pub f3d: String,
+    /// Cuántas miniaturas se generan a la vez.
+    pub paralelo: usize,
 }
 
 impl Config {
@@ -47,6 +53,17 @@ impl Config {
             .ok()
             .filter(|v| !v.is_empty())
             .map(PathBuf::from);
+        let miniaturas = env::var("ARCHIVO_MINIATURAS")
+            .unwrap_or_else(|_| "datos/miniaturas".into())
+            .into();
+        let f3d = env::var("ARCHIVO_F3D").unwrap_or_else(|_| "f3d".into());
+        let nucleos = std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(2);
+        let paralelo = env::var("ARCHIVO_PARALELO")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or((nucleos / 2).max(1));
         Ok(Self {
             direccion,
             base,
@@ -54,6 +71,33 @@ impl Config {
             cookie_segura,
             dias_sesion,
             biblioteca,
+            miniaturas,
+            f3d,
+            paralelo,
         })
+    }
+
+    /// Configuración mínima para pruebas (sin frontend, cookie sin Secure, caché en una carpeta temporal).
+    pub fn de_prueba(biblioteca: Option<PathBuf>, estaticos: Option<PathBuf>) -> Self {
+        let n = std::process::id();
+        Self {
+            direccion: "127.0.0.1:0".parse().expect("dirección fija"),
+            base: ":memory:".into(),
+            estaticos,
+            cookie_segura: false,
+            dias_sesion: 30,
+            biblioteca,
+            miniaturas: std::env::temp_dir().join(format!("pa-miniaturas-{n}")),
+            f3d: "f3d".into(),
+            paralelo: 2,
+        }
+    }
+
+    pub fn opciones_miniaturas(&self) -> crate::miniaturas::Opciones {
+        crate::miniaturas::Opciones {
+            dir: self.miniaturas.clone(),
+            f3d: self.f3d.clone(),
+            paralelo: self.paralelo,
+        }
     }
 }

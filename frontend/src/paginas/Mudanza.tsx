@@ -138,7 +138,7 @@ export default function Mudanza() {
             <Text size="sm">
               Listo: {n(t.data?.resultado?.movidos ?? 0)} archivos movidos,{' '}
               {n(t.data?.resultado?.carpetas_quitadas ?? 0)} carpetas vacías quitadas
-              {(t.data?.resultado?.errores.length ?? 0) > 0 && `, ${t.data?.resultado?.errores.length} errores`}.
+              {(t.data?.resultado?.errores?.length ?? 0) > 0 && `, ${t.data?.resultado?.errores?.length} errores`}.
             </Text>
           )}
         </Card>
