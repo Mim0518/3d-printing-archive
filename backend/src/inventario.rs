@@ -38,7 +38,7 @@ pub struct Entrada {
     pub stl: Option<(Option<&'static str>, Option<i64>)>,
 }
 
-#[derive(Debug, Default, Serialize, Clone)]
+#[derive(Debug, Default, Serialize)]
 pub struct Resultado {
     pub archivos: u64,
     pub nuevos: u64,
@@ -46,6 +46,8 @@ pub struct Resultado {
     pub iguales: u64,
     pub faltan: u64,
     pub errores: Vec<String>,
+    /// Lo que encontró la detección de placas que corre al final.
+    pub placas: Option<crate::placas::Resultado>,
 }
 
 /// Formato y número de triángulos de un STL leyendo solo su encabezado (84 bytes).
@@ -242,5 +244,6 @@ pub async fn escanear(
 
     catalogo::ligar_archivos(pool).await?;
     catalogo::actualizar_estadisticas(pool).await?;
+    res.placas = Some(crate::placas::detectar(pool).await?);
     Ok(res)
 }

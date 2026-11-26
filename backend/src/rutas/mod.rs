@@ -5,6 +5,7 @@ mod catalogo;
 mod edicion;
 mod miniaturas;
 mod mudanzas;
+mod placas;
 mod trabajos;
 
 use axum::Router;
@@ -18,6 +19,7 @@ pub fn api() -> Router<AppState> {
         .merge(edicion::rutas())
         .merge(miniaturas::rutas())
         .merge(mudanzas::rutas())
+        .merge(placas::rutas())
         .merge(trabajos::rutas())
         .fallback(|| async { ApiError::NoEncontrado })
 }

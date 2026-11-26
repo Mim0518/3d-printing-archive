@@ -26,6 +26,7 @@ import { api } from '../api'
 import EditorModelo from '../componentes/EditorModelo'
 import Galeria from '../componentes/Galeria'
 import Miniatura from '../componentes/Miniatura'
+import PlacasDelModelo from '../componentes/PlacasDelModelo'
 import VisorModal from '../componentes/VisorModal'
 import { COLOR_TIPO, cuando, n, tamano, titulo } from '../formato'
 import { VISIBLES_3D } from '../opciones'
@@ -242,6 +243,7 @@ export default function Modelo() {
       </Card>
 
       <Galeria modelo={m} ver={setViendo} />
+      <PlacasDelModelo modeloId={m.id} />
 
       <Card withBorder>
         <Group justify="space-between" mb="xs" wrap="wrap">

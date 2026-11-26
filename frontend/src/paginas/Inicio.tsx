@@ -21,7 +21,7 @@ import { api } from '../api'
 import { COLOR_TIPO, cuando, n, tamano } from '../formato'
 import { useYo } from '../sesion'
 import { useTrabajo } from '../trabajo'
-import type { Resumen, ResumenMiniaturas, Trabajo } from '../tipos'
+import type { Resumen, ResumenMiniaturas, ResumenPlacas, Trabajo } from '../tipos'
 
 function Miniaturas() {
   const qc = useQueryClient()
@@ -67,6 +67,30 @@ function Miniaturas() {
           {generar.error.message}
         </Alert>
       )}
+    </Card>
+  )
+}
+
+function Placas() {
+  const r = useQuery({ queryKey: ['placas-resumen'], queryFn: () => api<ResumenPlacas>('/placas/resumen') })
+  const d = r.data
+  if (!d || d.total === 0) return null
+  return (
+    <Card withBorder>
+      <Group justify="space-between" align="flex-start">
+        <div>
+          <Text fw={500}>Placas y escenas</Text>
+          <Text size="sm" c="dimmed">
+            {n(d.total)} placas · {n(d.confirmadas)} con modelo confirmado · {n(d.con_laminado)} con laminado
+          </Text>
+        </div>
+        {d.por_confirmar > 0 && (
+          <Button variant="light" component={Link} to="/placas?revision=por_confirmar">
+            Revisar las {n(d.por_confirmar)} por confirmar
+          </Button>
+        )}
+      </Group>
+      <Progress value={d.total ? ((d.confirmadas + d.sin_modelo) * 100) / d.total : 0} mt="sm" color="green" />
     </Card>
   )
 }
@@ -184,6 +208,7 @@ export default function Inicio() {
 
       <Escaneo resumen={d} />
       <Miniaturas />
+      <Placas />
 
       <SimpleGrid cols={{ base: 1, md: 2 }}>
         <Card withBorder>

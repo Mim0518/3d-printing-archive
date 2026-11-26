@@ -31,3 +31,15 @@ export const ESTADO_MUDANZA: Record<string, { texto: string; color: string }> = 
 
 /** Formatos que abre el visor 3D. */
 export const VISIBLES_3D = ['stl', 'obj', '3mf', 'ply']
+
+export const ESTADO_PLACA: Record<string, { texto: string; color: string }> = {
+  sin_probar: { texto: 'sin probar', color: 'gray' },
+  probada: { texto: 'probada', color: 'green' },
+  fallida: { texto: 'fallida', color: 'red' },
+}
+
+export const ROL_ARCHIVO: Record<string, string> = {
+  escena: 'escena',
+  laminado: 'laminado',
+  autoguardado: 'autoguardado',
+}

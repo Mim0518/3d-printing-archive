@@ -13,7 +13,12 @@ Tecnología:
 - Backend: Rust (Axum + SQLite). Frontend: React + Vite + TypeScript (Mantine).
 - Corre en un mini PC en casa; desde fuera se entra por Tailscale.
 
-Estado: **fase 3** (miniaturas de todas las mallas e imágenes con f3d, portada de cada modelo, galería y visor 3D en el navegador; antes: catálogo editable con etiquetas, historial y mudanzas con deshacer). Ver la [especificación](docs/especificacion.md) y la [guía de instalación](deploy/README.md).
+Estado: **fase 4**. Placas y escenas:
+- se detectan solas (escena, laminados y autoguardados de Lychee);
+- se leen los datos de los laminados (Chitubox y Photon Workshop) y las vistas previas que traen dentro;
+- cada placa se liga a sus modelos: la app lo sugiere y tú confirmas.
+
+Fases anteriores: miniaturas con f3d, portadas y visor 3D; catálogo editable con etiquetas, historial y mudanzas con deshacer. Ver la [especificación](docs/especificacion.md) y la [guía de instalación](deploy/README.md).
 
 ## Desarrollo
 

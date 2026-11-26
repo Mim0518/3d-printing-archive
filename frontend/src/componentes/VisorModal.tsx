@@ -21,6 +21,17 @@ export default function VisorModal({ archivo, cerrar }: { archivo: ArchivoFila |
         <Stack>
           {a.tipo === 'imagen' ? (
             <img src={url} alt={a.nombre} style={{ maxWidth: '100%', maxHeight: '75vh', objectFit: 'contain' }} />
+          ) : (a.tipo === 'escena' || a.tipo === 'laminado') && a.miniatura ? (
+            <Stack gap={4}>
+              <img
+                src={`/api/v1/archivos/${a.id}/miniatura?t=512&v=${a.miniatura}`}
+                alt={a.nombre}
+                style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain' }}
+              />
+              <Text size="xs" c="dimmed">
+                Vista previa que trae el archivo. Para imprimirlo, ábrelo en su laminador.
+              </Text>
+            </Stack>
           ) : !VISIBLES_3D.includes(a.ext) ? (
             <Text size="sm">El visor no abre archivos .{a.ext}; puedes descargarlo.</Text>
           ) : pesado ? (
@@ -44,7 +55,7 @@ export default function VisorModal({ archivo, cerrar }: { archivo: ArchivoFila |
           <Group justify="space-between">
             <Text size="xs" c="dimmed">
               {tamano(a.bytes)}
-              {a.tipo !== 'imagen' && ' · arrastra para girar, rueda o pellizco para acercar'}
+              {VISIBLES_3D.includes(a.ext) && ' · arrastra para girar, rueda o pellizco para acercar'}
             </Text>
             <Button size="xs" variant="default" component="a" href={url} download={a.nombre}>
               Descargar

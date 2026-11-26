@@ -8,10 +8,10 @@ import { useTrabajo } from '../trabajo'
 import type { ArchivoFila, Ficha } from '../tipos'
 import Miniatura from './Miniatura'
 
-const RENDERIZABLES = new Set(['stl', 'obj', '3mf', 'ply', 'jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'])
 const PRIMERAS = 48
 
-/** Galería de un modelo: imágenes y renders de sus mallas; desde aquí se elige la portada y se abre el visor. */
+/** Galería de un modelo: imágenes, renders de sus mallas y vistas previas de sus escenas; desde aquí se elige la
+ * portada y se abre el visor. */
 export default function Galeria({ modelo, ver }: { modelo: Ficha; ver: (a: ArchivoFila) => void }) {
   const qc = useQueryClient()
   const [todas, setTodas] = useState(false)
@@ -36,7 +36,7 @@ export default function Galeria({ modelo, ver }: { modelo: Ficha; ver: (a: Archi
   }, [estado, qc, modelo.id])
 
   const presentes = modelo.archivos.filter((a) => a.estado === 'presente')
-  const sin = presentes.filter((a) => RENDERIZABLES.has(a.ext) && !a.miniatura).length
+  const sin = presentes.filter((a) => a.renderizable && !a.miniatura).length
   const con = presentes
     .filter((a) => a.miniatura)
     .sort((a, b) => Number(b.tipo === 'imagen') - Number(a.tipo === 'imagen') || b.bytes - a.bytes)

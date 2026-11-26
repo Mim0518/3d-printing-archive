@@ -1,6 +1,6 @@
 # 3D Printing Archive: especificación
 
-Versión 0.6, borrador del 26 de noviembre de 2026. La app se va a construir por fases, y este documento crece con ella. Lo que todavía no está decidido está en la sección 12.
+Versión 0.7, borrador del 26 de noviembre de 2026. La app se va a construir por fases, y este documento crece con ella. Lo que todavía no está decidido está en la sección 12.
 
 ## 1. Objetivo
 
@@ -110,17 +110,36 @@ El motivo principal es el inventario para vender impresiones: hoy es difícil ll
 - THU-3. Portada del modelo: la foto del estudio si existe; si no, el render de la pieza principal, o un mosaico de piezas. Se puede elegir a mano.
 - THU-4. Vista lado a lado con y sin soportes cuando existan las dos versiones (por ejemplo, carpetas `Supported` y `Unsupported`).
 - THU-5. Visor 3D en el navegador (three.js con react-three-fiber) bajo demanda. Las mallas muy pesadas (más de 100 MB) se muestran con una versión simplificada que genera el servidor.
-- THU-6. Las placas usan la vista previa que traen dentro sus laminados (`.photon`, `.pm4n`, `.ctb` y `.3mf` la incluyen). Si no la traen, se renderiza la escena, o el usuario sube una captura.
+- THU-6. Las placas usan la vista previa que traen dentro sus archivos: las escenas de Lychee (`.lys` y sus autoguardados `.lyt`, PNG de 512 px), los laminados de Chitubox (`.photon`, `.cbddlp`, `.ctb` sin cifrar), los de Photon Workshop (`.pws`, `.pwmo`, `.pm4n`…) y algunas escenas `.pwscene`. Se guardan en la misma caché que las miniaturas.
+  - `.chitubox` y la escena de Anycubic (`.scene`) no traen imagen ni se pueden renderizar con f3d. Para ellas se usa la miniatura de la malla con el mismo nombre (la «gemela»), si existe, o una que el usuario elija entre los archivos de la placa y de sus modelos.
+  - Las escenas de Lychee viejas (unas 225) tampoco traen vista previa.
 
 ### 5.5 Placas y escenas
-- PLA-1. Detectar escenas (`.lys`, `.chitubox`, `.lyt`, `.scene`, `.pwscene`, `.3mf`) y laminados (`.photon`, `.pm4n`, `.pws`, `.ctb`, `.gcode`) y agruparlos en placas. Una placa reúne la escena y sus laminados para cada impresora.
+- PLA-1. Detectar escenas (`.lys`, `.chitubox`, `.lyt`, `.scene`, `.pwscene`, `.3mf`) y laminados (`.photon`, `.pm4n`, `.pws`, `.ctb`, `.gcode`) y agruparlos en placas. Una placa reúne la escena y sus laminados para cada impresora. Reglas (fase 4):
+  - una placa junta, en la misma carpeta, la escena y los laminados que se llaman igual sin la extensión (`Torso.lys` y `Torso.photon`);
+  - los autoguardados de Lychee (`<Nombre>_autosave/<Nombre>_<fecha>.lyt`) van con `<Nombre>.lys` de la carpeta de arriba, aunque la escena se haya renombrado; si no hay escena, la placa se llama como la carpeta;
+  - un 3MF es placa solo si es un proyecto de laminador (trae la configuración o las placas de Orca, Bambu, Prusa o Cura en `Metadata/`); un proyecto con varias placas cuenta como una, con su número de placas;
+  - `.pwsr` es un perfil de resina de Photon Workshop, no una escena: va con los perfiles (fase 5);
+  - la detección corre sola al final de cada escaneo y de cada mudanza, y se puede lanzar a mano. Solo vuelve a leer los archivos que cambiaron.
 - PLA-2. Leer los datos de los laminados cuando el formato lo permita: impresora, altura de capa, exposición, número de capas, tiempo estimado, volumen (ml) o peso (g) y vista previa.
+  - Chitubox clásico: resolución, capa, exposición (normal y de base), capas, alto, tiempo, volumen y peso.
+  - Photon Workshop: nombre de la impresora, resolución, capa, exposición, capas, tiempo y volumen. El peso solo se toma si cuadra con el volumen, porque varias versiones lo guardan vacío o con basura.
+  - El `.gcode` de la Ender (Orca) trae tiempo, filamento y miniatura en sus comentarios: se lee cuando haya alguno en la colección (hoy no hay).
 - PLA-3. **Marcar a qué modelo pertenece cada placa.** Una placa puede tener varios modelos, cada uno con su cantidad. La app sugiere, y el usuario confirma:
   - por la carpeta donde está la placa;
   - por el nombre;
   - por la geometría (`geo_hash`, como en la fase 5).
-- PLA-4. Desde un modelo, ver sus placas listas para imprimir y para qué impresora y material.
+
+  Hecho en la fase 4:
+  - Sugerencia por la carpeta (el modelo de los archivos de la placa) y, para las placas que no están en la carpeta de un modelo, por el nombre: el nombre de modelo más largo que aparece completo en la carpeta o el nombre de la placa.
+  - Se confirma placa por placa, por modelo o todas las de carpeta de una vez. Lo rechazado («no es de este») no se vuelve a sugerir.
+  - **Cantidad**: miniaturas completas del modelo que salen de la placa. Vacía quiere decir que la placa solo trae partes (un brazo, la mitad de un kit). La fase 6 la usa para sumar existencias al registrar una impresión.
+  - Una placa se puede marcar como «no es de ningún modelo» (calibración, pruebas).
+  - Pendiente: la sugerencia por geometría. Las escenas guardan la malla en formatos propios (Lychee, Chitubox), así que hace falta leerlos primero.
+- PLA-4. Desde un modelo, ver sus placas listas para imprimir y para qué impresora y material. La impresora sale del laminado; el material llega con la fase 5.
 - PLA-5. Crear y editar placas a mano (nombre, impresora, material, archivos, piezas y cantidades) y subir archivos de placa nuevos.
+  - Hecho: separar archivos de una placa en otra nueva (hecha a mano), pasar archivos de una placa a otra y borrar las hechas a mano (sus archivos vuelven a detectarse solos). La detección no mueve lo que se puso a mano.
+  - Pendiente: subir archivos nuevos, que depende de dónde se guardan (pregunta 6 de la sección 12), e impresora y material (fase 5).
 - PLA-6. Marcar placas como probadas, fallidas o favoritas, con notas.
 
 ### 5.6 Almacenamiento frío (Drive y disco externo)
@@ -196,9 +215,10 @@ Son tablas de SQLite; las tablas de unión se escriben con `↔`.
 - `modelos` (id, juego, faccion, nombre, estudio, subcarpeta, carpeta, confianza, notas, revisado, portada_archivo_id, creado, actualizado), con `historial_cambios` aparte
 - `etiquetas` (id, nombre, tipo, color) ↔ `modelo_etiquetas`
 - `miniaturas` (archivo_id, clave_contenido, ruta_cache, motor, estado, generado)
-- `placas` (id, nombre, impresora_id, material_id, perfil_id, altura_capa, exposicion, capas, tiempo_s, volumen_ml, peso_g, estado, notas)
-  - ↔ `placa_archivos` (rol: escena | laminado | vista previa)
-  - ↔ `placa_piezas` (modelo_id, archivo_id, cantidad, confirmado)
+- `placas` (id, nombre, carpeta, clave de detección, origen: detectada | manual, estado: sin_probar | probada | fallida, favorita, sin_modelo, notas, portada elegida, malla gemela). En la fase 5 se agregan impresora_id, material_id y perfil_id.
+  - ↔ `placa_archivos` (archivo_id, rol: escena | laminado | autoguardado, auto). Cada archivo es de una sola placa; `auto` = 0 si el usuario lo puso ahí.
+  - ↔ `placa_modelos` (modelo_id, estado: sugerido | confirmado | rechazado, origen: carpeta | nombre | manual, cantidad).
+  - `datos_placa` (archivo_id, clave, formato, es_placa, vista_previa, máquina, resolución, capa, exposición, capas, alto, tiempo, volumen, peso, número de placas, error): lo que se leyó de cada escena o laminado.
 - `ubicaciones_frio` (id, nombre, tipo: drive | disco_externo, remoto o uuid, ruta base) y `copias` (archivo o paquete, ubicación, ruta, md5, verificado_en, estado). Para los comprimidos, `paquete_contenido` (las entradas de cada uno).
 - `impresoras`, `materiales`, `perfiles` (impresora_id, material_id, parametros JSON, version) ↔ `perfil_archivos`
 - `impresiones` (placa_id, impresora_id, material_id, fecha, resultado, consumo, tiempo_s, pedido_id)
@@ -259,7 +279,7 @@ Son tablas de SQLite; las tablas de unión se escriben con `↔`.
 - `modelos`, `modelos/{id}`, `modelos/{id}/archivos`, `modelos/{id}/placas`
 - `archivos/{id}`, `archivos/{id}/miniatura`, `archivos/{id}/malla`, `archivos/{id}/descarga`
 - `etiquetas`, `mudanzas` (plan, ejecutar, deshacer), `bandeja`
-- `placas`, `placas/{id}/piezas`
+- `placas` (lista con filtros; crear a mano), `placas/resumen`, `placas/detectar`, `placas/confirmar`, `placas/{id}` (ficha, editar, borrar), `placas/{id}/portada`, `placas/{id}/archivos`, `placas/{id}/modelos/{modelo_id}`
 - `frio/ubicaciones`, `frio/transferencias`
 - `impresoras`, `materiales`, `perfiles`, `impresiones`
 - `existencias`, `existencias/movimientos`
@@ -301,7 +321,16 @@ Son las mismas reglas con las que se limpió la colección:
 
 Cada fase termina con algo que se puede usar y se prueba primero en esta PC.
 
-**Avance:** fases 0, 1, 2 y 3 terminadas (26 de noviembre de 2026). La 0 y la 1 se probaron con la colección real; las mudanzas de la 2, en colecciones de prueba (mover y deshacer dejan todo idéntico), porque en la colección real no hay nada pendiente de mover. Las miniaturas de la 3 se generaron para los 66 modelos de Necrons (999 archivos en 2 min 46 s, sin fallas, 33 MB de caché); el visor 3D falta verlo en un navegador con WebGL.
+**Avance:** fases 0 a 4 terminadas (26 de noviembre de 2026). La 0 y la 1 se probaron con la colección real; las mudanzas de la 2, en colecciones de prueba (mover y deshacer dejan todo idéntico), porque en la colección real no hay nada pendiente de mover. Las miniaturas de la 3 se generaron para los 66 modelos de Necrons (999 archivos en 2 min 46 s, sin fallas, 33 MB de caché); el visor 3D falta verlo en un navegador con WebGL.
+
+Fase 4 con la colección real:
+- 1,096 placas detectadas a partir de 1,212 archivos: 1,028 escenas, 47 laminados y 137 autoguardados.
+- 1,081 placas tienen sugerido su modelo por la carpeta. Las 15 sin sugerencia son proyectos 3MF fuera del catálogo (Gridfinity, MTGBoxes, Utilidades…) y las pruebas de `Printers/`.
+- Las 506 vistas previas que traen los archivos salieron en 4 s. Las mallas no se renderizan para esto.
+- La primera lectura tardó unos 2.5 min en el disco duro (1,272 archivos); las siguientes solo leen lo nuevo (14 s con la caché del sistema).
+- Un 3MF de los Grey Knights (`GK_MKX_STRIKE_ARMS_HANDS_FORCESWORD_STYLISH_SB_repaired.3mf`) está dañado: no es un zip válido.
+- Falta que el usuario confirme las sugerencias, con el botón que confirma todas las que vienen de la carpeta o placa por placa.
+- No se detectan los laminados que la limpieza mandó a `3DP-cuarentena` en Drive. Se pueden ligar cuando llegue la fase 8.
 
 | Fase | Qué incluye | Terminada cuando |
 |---|---|---|
@@ -325,7 +354,7 @@ La lectura del almacenamiento frío entra desde la fase 1, porque ya hay modelos
 3. **Existencias**: ¿se cuentan por miniatura suelta o por kit o escuadra? ¿Qué acabados manejas? ¿Tienes cajas o ubicaciones con nombre?
 4. **Costos**: precio de la luz, tarifa de mano de obra o pintura, margen y porcentaje de fallas que usas hoy.
 5. **Canales de venta**: WhatsApp, Facebook, Mercado Libre… Esto decide los formatos de exportación de las colecciones.
-6. **Placas nuevas**: ¿dónde guardas las escenas y laminados que haces en Lychee o Chitubox? Hace falta una convención para que la app los encuentre.
+6. **Placas nuevas**: ¿dónde guardas las escenas y laminados que haces en Lychee o Chitubox? Hace falta una convención para que la app los encuentre. Hoy están junto a los modelos (las Battle Sisters, el Daemon Prince, el Judiciar…) y la app las detecta ahí; la convención decide además dónde se guardan las que se suban desde la app.
 7. **Respaldo de la base**: ¿basta una copia diaria en Drive?
 
 ## 13. Fuera de alcance por ahora

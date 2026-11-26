@@ -184,9 +184,15 @@ async fn id_archivo(pool: &SqlitePool, nombre: &str) -> i64 {
 #[tokio::test]
 async fn genera_una_vez_por_archivo_y_recuerda_errores() {
     let (_j, pool, _app, _c, op) = preparar("generar").await;
-    let r = miniaturas::generar(&pool, op.clone(), None, false, Arc::new(AtomicU64::new(0)))
-        .await
-        .unwrap();
+    let r = miniaturas::generar(
+        &pool,
+        op.clone(),
+        Default::default(),
+        false,
+        Arc::new(AtomicU64::new(0)),
+    )
+    .await
+    .unwrap();
     // a.stl y su enlace a2.stl, cover.png, b.obj, falla.stl
     assert_eq!((r.candidatos, r.generadas, r.fallidas), (5, 4, 1), "{r:?}");
     let claves: Vec<String> =
@@ -212,17 +218,29 @@ async fn genera_una_vez_por_archivo_y_recuerda_errores() {
     let img = image::open(miniaturas::ruta_cache(&op.dir, &k, 512)).unwrap();
     assert_eq!((img.width(), img.height()), (512, 384));
 
-    let r = miniaturas::generar(&pool, op.clone(), None, false, Arc::new(AtomicU64::new(0)))
-        .await
-        .unwrap();
+    let r = miniaturas::generar(
+        &pool,
+        op.clone(),
+        Default::default(),
+        false,
+        Arc::new(AtomicU64::new(0)),
+    )
+    .await
+    .unwrap();
     assert_eq!(
         (r.generadas, r.fallidas, r.ya_estaban),
         (0, 0, 5),
         "no repite ni reintenta errores"
     );
-    let r = miniaturas::generar(&pool, op, None, true, Arc::new(AtomicU64::new(0)))
-        .await
-        .unwrap();
+    let r = miniaturas::generar(
+        &pool,
+        op,
+        Default::default(),
+        true,
+        Arc::new(AtomicU64::new(0)),
+    )
+    .await
+    .unwrap();
     assert_eq!(r.fallidas, 1, "con forzar sí reintenta");
 }
 

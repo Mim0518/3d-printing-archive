@@ -9,8 +9,10 @@ pub mod error;
 pub mod estructura;
 pub mod frio;
 pub mod inventario;
+pub mod lectores;
 pub mod miniaturas;
 pub mod mudanzas;
+pub mod placas;
 pub mod rutas;
 pub mod trabajos;
 

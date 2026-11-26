@@ -154,6 +154,8 @@ pub async fn importar_catalogo(
     ligar_archivos(pool).await?;
     actualizar_estadisticas(pool).await?;
     crate::edicion::recalcular(pool, None).await?;
+    // los archivos pudieron cambiar de modelo: las placas sugieren otros
+    crate::placas::sugerir(pool).await?;
     Ok(res)
 }
 

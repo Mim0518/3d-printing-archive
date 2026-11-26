@@ -334,6 +334,8 @@ struct FilaArchivo {
     triangulos: Option<i64>,
     estado: String,
     miniatura: Option<String>,
+    /// Lleva miniatura (malla, imagen, o escena o laminado con vista previa).
+    renderizable: bool,
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -368,12 +370,13 @@ async fn ficha(
         .bind(id)
         .fetch_one(p)
         .await?;
-    let archivos: Vec<FilaArchivo> = sqlx::query_as(
+    let archivos: Vec<FilaArchivo> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
         "SELECT a.id, a.ruta, a.nombre, a.ext, a.tipo, a.bytes, a.nlink, a.stl_formato, a.triangulos, a.estado,
-                mi.clave AS miniatura
+                mi.clave AS miniatura, {} AS renderizable
          FROM archivos a LEFT JOIN miniaturas mi ON mi.archivo_id = a.id AND mi.estado = 'ok'
          WHERE a.modelo_id = ? ORDER BY a.ruta LIMIT 20000",
-    )
+        crate::miniaturas::SQL_RENDERIZABLE
+    )))
     .bind(id)
     .fetch_all(p)
     .await?;

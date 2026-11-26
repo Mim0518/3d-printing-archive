@@ -59,6 +59,7 @@ export interface ArchivoFila {
   triangulos: number | null
   estado: 'presente' | 'falta'
   miniatura: string | null
+  renderizable: boolean
 }
 
 export interface CopiaFrio {
@@ -170,8 +171,114 @@ export interface Trabajo {
     fallidas?: number
     ejemplos_de_error?: string[]
     errores?: string[]
+    placas?: number
+    nuevas?: number
+    leidos?: number
+    sugerencias_nuevas?: number
   } | null
   creado: number
   terminado: number | null
   progreso: number | null
+}
+
+// ---------- placas ----------
+
+export type EstadoPlaca = 'sin_probar' | 'probada' | 'fallida'
+export type EstadoLiga = 'sugerido' | 'confirmado' | 'rechazado'
+
+export interface DatosArchivoPlaca {
+  ext: string
+  rol: 'escena' | 'laminado' | 'autoguardado'
+  formato: string | null
+  maquina: string | null
+  res_x: number | null
+  res_y: number | null
+  capa_mm: number | null
+  exposicion_s: number | null
+  exposicion_base_s: number | null
+  capas_base: number | null
+  capas: number | null
+  alto_mm: number | null
+  tiempo_s: number | null
+  volumen_ml: number | null
+  peso_g: number | null
+  n_placas: number | null
+  error: string | null
+}
+
+export interface ModeloDePlaca {
+  id: number
+  nombre: string
+  faccion: string
+  juego: string
+  estudio: string
+  carpeta: string
+  estado: EstadoLiga
+  origen: 'carpeta' | 'nombre' | 'manual'
+  cantidad: number | null
+}
+
+export interface PlacaFila {
+  id: number
+  nombre: string
+  carpeta: string
+  origen: 'detectada' | 'manual'
+  estado: EstadoPlaca
+  favorita: boolean
+  sin_modelo: boolean
+  notas: string
+  n_archivos: number
+  n_presentes: number
+  portada: { id: number; clave: string } | null
+  formatos: string[]
+  autoguardados: number
+  laminados: DatosArchivoPlaca[]
+  n_placas: number | null
+  modelos: ModeloDePlaca[]
+}
+
+export interface ListaPlacas {
+  total: number
+  pagina: number
+  por_pagina: number
+  placas: PlacaFila[]
+}
+
+export interface ArchivoDePlaca {
+  id: number
+  ruta: string
+  nombre: string
+  ext: string
+  tipo: string
+  bytes: number
+  mtime_ms: number
+  estado: 'presente' | 'falta'
+  rol: 'escena' | 'laminado' | 'autoguardado'
+  auto: boolean
+  modelo_id: number | null
+  miniatura: string | null
+  datos: DatosArchivoPlaca | null
+}
+
+export interface PlacaFicha extends Omit<PlacaFila, 'formatos' | 'autoguardados' | 'laminados' | 'n_placas'> {
+  portada_elegida: number | null
+  creada: number
+  actualizada: number
+  archivos: ArchivoDePlaca[]
+  gemela: { id: number; ruta: string; miniatura: string | null } | null
+}
+
+export interface ResumenPlacas {
+  total: number
+  confirmadas: number
+  sin_modelo: number
+  por_confirmar: number
+  sin_sugerencia: number
+  sugerencias_por_carpeta: number
+  con_laminado: number
+  favoritas: number
+  probadas: number
+  fallidas: number
+  vistas_pendientes: number
+  en_curso: { id: number; tipo: string } | null
 }

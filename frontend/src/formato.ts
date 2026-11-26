@@ -48,3 +48,25 @@ export const COLOR_TIPO: Record<string, string> = {
   video: 'grape',
   otro: 'dark',
 }
+
+/** 18916 → «5 h 15 min». */
+export function duracion(segundos: number | null | undefined): string {
+  if (!segundos) return ''
+  const h = Math.floor(segundos / 3600)
+  const m = Math.round((segundos % 3600) / 60)
+  if (h === 0) return `${m} min`
+  return m ? `${h} h ${m} min` : `${h} h`
+}
+
+/** La impresora de un laminado: su nombre si lo trae, o la resolución de la pantalla. */
+export function maquina(d: { maquina: string | null; res_x: number | null; res_y: number | null }): string {
+  if (d.maquina && d.maquina !== 'Custom') return d.maquina
+  if (d.res_x && d.res_y) return `${d.res_x}×${d.res_y}`
+  return d.maquina ?? ''
+}
+
+/** Número corto: 0.05 → «0.05», 42.2981 → «42.3». */
+export function corto(x: number | null | undefined, decimales = 1): string {
+  if (x == null) return ''
+  return x < 1 ? String(Number(x.toFixed(3))) : String(Number(x.toFixed(decimales)))
+}

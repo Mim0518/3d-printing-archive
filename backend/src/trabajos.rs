@@ -1,5 +1,5 @@
-//! Trabajos en segundo plano (por ahora, el escaneo). Su estado queda en la tabla `trabajos`; el progreso de los
-//! que están en curso, en memoria.
+//! Trabajos en segundo plano: escaneo, miniaturas, mudanzas y detección de placas. Su estado queda en la tabla
+//! `trabajos`; el progreso de los que están en curso, en memoria.
 
 use std::{
     collections::HashMap,
@@ -85,133 +85,32 @@ async fn alguno_en_curso(pool: &SqlitePool) -> Result<(), ApiError> {
     }
 }
 
-/// Ejecuta (o deshace) una mudanza en segundo plano. No corre junto con un escaneo ni con otra mudanza.
-pub async fn iniciar_mudanza(
+/// Registra un trabajo «en curso» y lo corre en segundo plano; al terminar guarda su resultado (o el error).
+/// Solo corre uno a la vez.
+async fn lanzar<F, Fut, R>(
     pool: SqlitePool,
     trabajos: Arc<Trabajos>,
-    mudanza: i64,
-    deshacer: bool,
-) -> Result<i64, ApiError> {
+    tipo: &'static str,
+    detalle: String,
+    tarea: F,
+) -> Result<i64, ApiError>
+where
+    F: FnOnce(SqlitePool, Arc<AtomicU64>) -> Fut + Send + 'static,
+    Fut: std::future::Future<Output = anyhow::Result<R>> + Send + 'static,
+    R: Serialize + Send + 'static,
+{
     alguno_en_curso(&pool).await?;
-    let tipo = if deshacer {
-        "deshacer_mudanza"
-    } else {
-        "mudanza"
-    };
     let id: i64 = sqlx::query_scalar(
         "INSERT INTO trabajos (tipo, estado, detalle, creado) VALUES (?, 'en_curso', ?, ?) RETURNING id",
     )
     .bind(tipo)
-    .bind(format!("mudanza {mudanza}"))
-    .bind(ahora())
-    .fetch_one(&pool)
-    .await?;
-    let progreso = trabajos.registrar(id);
-    tokio::spawn(async move {
-        let r = if deshacer {
-            crate::mudanzas::deshacer(&pool, mudanza, progreso).await
-        } else {
-            crate::mudanzas::ejecutar(&pool, mudanza, progreso).await
-        };
-        let (estado, detalle, resultado) = match r {
-            Ok(res) => (
-                "terminado",
-                format!("mudanza {mudanza}"),
-                serde_json::to_string(&res).unwrap_or_default(),
-            ),
-            Err(e) => {
-                tracing::error!("{tipo} {mudanza}: {e:#}");
-                ("fallo", format!("{e:#}"), String::new())
-            }
-        };
-        let _ = sqlx::query(
-            "UPDATE trabajos SET estado = ?, detalle = ?, resultado = ?, terminado = ? WHERE id = ?",
-        )
-        .bind(estado)
-        .bind(detalle)
-        .bind(resultado)
-        .bind(ahora())
-        .bind(id)
-        .execute(&pool)
-        .await;
-        trabajos.quitar(id);
-    });
-    Ok(id)
-}
-
-/// Arranca el escaneo de una biblioteca en segundo plano. Solo puede haber uno a la vez.
-pub async fn iniciar_escaneo(
-    pool: SqlitePool,
-    trabajos: Arc<Trabajos>,
-    biblioteca_id: i64,
-) -> Result<i64, ApiError> {
-    alguno_en_curso(&pool).await?;
-    let nombre: Option<String> = sqlx::query_scalar("SELECT nombre FROM bibliotecas WHERE id = ?")
-        .bind(biblioteca_id)
-        .fetch_optional(&pool)
-        .await?;
-    let Some(nombre) = nombre else {
-        return Err(ApiError::NoEncontrado);
-    };
-    let id: i64 = sqlx::query_scalar(
-        "INSERT INTO trabajos (tipo, estado, detalle, creado) VALUES ('escaneo', 'en_curso', ?, ?) RETURNING id",
-    )
-    .bind(format!("biblioteca {nombre}"))
-    .bind(ahora())
-    .fetch_one(&pool)
-    .await?;
-    let vistos = trabajos.registrar(id);
-    tokio::spawn(async move {
-        let r = inventario::escanear(&pool, biblioteca_id, vistos).await;
-        let (estado, detalle, resultado) = match r {
-            Ok(res) => (
-                "terminado",
-                format!("biblioteca {nombre}"),
-                serde_json::to_string(&res).unwrap_or_default(),
-            ),
-            Err(e) => {
-                tracing::error!("escaneo {id}: {e:#}");
-                ("fallo", format!("{e:#}"), String::new())
-            }
-        };
-        let _ = sqlx::query(
-            "UPDATE trabajos SET estado = ?, detalle = ?, resultado = ?, terminado = ? WHERE id = ?",
-        )
-        .bind(estado)
-        .bind(detalle)
-        .bind(resultado)
-        .bind(ahora())
-        .bind(id)
-        .execute(&pool)
-        .await;
-        trabajos.quitar(id);
-    });
-    Ok(id)
-}
-
-/// Genera miniaturas en segundo plano (de todo o de los modelos indicados). No corre junto con otro trabajo.
-pub async fn iniciar_miniaturas(
-    pool: SqlitePool,
-    trabajos: Arc<Trabajos>,
-    opciones: crate::miniaturas::Opciones,
-    modelo_ids: Option<Vec<i64>>,
-    forzar: bool,
-) -> Result<i64, ApiError> {
-    alguno_en_curso(&pool).await?;
-    let detalle = match &modelo_ids {
-        Some(ids) => format!("{} modelos", ids.len()),
-        None => "toda la colección".to_string(),
-    };
-    let id: i64 = sqlx::query_scalar(
-        "INSERT INTO trabajos (tipo, estado, detalle, creado) VALUES ('miniaturas', 'en_curso', ?, ?) RETURNING id",
-    )
     .bind(&detalle)
     .bind(ahora())
     .fetch_one(&pool)
     .await?;
     let progreso = trabajos.registrar(id);
     tokio::spawn(async move {
-        let r = crate::miniaturas::generar(&pool, opciones, modelo_ids, forzar, progreso).await;
+        let r = tarea(pool.clone(), progreso).await;
         let (estado, det, resultado) = match r {
             Ok(res) => (
                 "terminado",
@@ -219,7 +118,7 @@ pub async fn iniciar_miniaturas(
                 serde_json::to_string(&res).unwrap_or_default(),
             ),
             Err(e) => {
-                tracing::error!("miniaturas: {e:#}");
+                tracing::error!("{tipo} (trabajo {id}): {e:#}");
                 ("fallo", format!("{e:#}"), String::new())
             }
         };
@@ -236,4 +135,95 @@ pub async fn iniciar_miniaturas(
         trabajos.quitar(id);
     });
     Ok(id)
+}
+
+/// Ejecuta (o deshace) una mudanza en segundo plano. Al terminar, las placas se ponen al día con las rutas nuevas.
+pub async fn iniciar_mudanza(
+    pool: SqlitePool,
+    trabajos: Arc<Trabajos>,
+    mudanza: i64,
+    deshacer: bool,
+) -> Result<i64, ApiError> {
+    let tipo = if deshacer {
+        "deshacer_mudanza"
+    } else {
+        "mudanza"
+    };
+    lanzar(
+        pool,
+        trabajos,
+        tipo,
+        format!("mudanza {mudanza}"),
+        move |pool, progreso| async move {
+            let res = if deshacer {
+                crate::mudanzas::deshacer(&pool, mudanza, progreso).await?
+            } else {
+                crate::mudanzas::ejecutar(&pool, mudanza, progreso).await?
+            };
+            crate::placas::detectar(&pool).await?;
+            Ok(res)
+        },
+    )
+    .await
+}
+
+/// Arranca el escaneo de una biblioteca en segundo plano (al final detecta las placas).
+pub async fn iniciar_escaneo(
+    pool: SqlitePool,
+    trabajos: Arc<Trabajos>,
+    biblioteca_id: i64,
+) -> Result<i64, ApiError> {
+    let nombre: Option<String> = sqlx::query_scalar("SELECT nombre FROM bibliotecas WHERE id = ?")
+        .bind(biblioteca_id)
+        .fetch_optional(&pool)
+        .await?;
+    let Some(nombre) = nombre else {
+        return Err(ApiError::NoEncontrado);
+    };
+    lanzar(
+        pool,
+        trabajos,
+        "escaneo",
+        format!("biblioteca {nombre}"),
+        move |pool, vistos| async move { inventario::escanear(&pool, biblioteca_id, vistos).await },
+    )
+    .await
+}
+
+/// Genera miniaturas en segundo plano (de todo o de los modelos indicados).
+pub async fn iniciar_miniaturas(
+    pool: SqlitePool,
+    trabajos: Arc<Trabajos>,
+    opciones: crate::miniaturas::Opciones,
+    cuales: crate::miniaturas::Cuales,
+    forzar: bool,
+) -> Result<i64, ApiError> {
+    let detalle = match (&cuales.modelo_ids, cuales.solo_placas) {
+        (Some(ids), false) => format!("{} modelos", ids.len()),
+        (Some(ids), true) => format!("vistas previas de placas de {} modelos", ids.len()),
+        (None, true) => "vistas previas de las placas".to_string(),
+        (None, false) => "toda la colección".to_string(),
+    };
+    lanzar(
+        pool,
+        trabajos,
+        "miniaturas",
+        detalle,
+        move |pool, progreso| async move {
+            crate::miniaturas::generar(&pool, opciones, cuales, forzar, progreso).await
+        },
+    )
+    .await
+}
+
+/// Vuelve a detectar las placas (sin escanear el disco).
+pub async fn iniciar_placas(pool: SqlitePool, trabajos: Arc<Trabajos>) -> Result<i64, ApiError> {
+    lanzar(
+        pool,
+        trabajos,
+        "placas",
+        "detección de placas".to_string(),
+        |pool, _| async move { crate::placas::detectar(&pool).await },
+    )
+    .await
 }

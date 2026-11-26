@@ -10,6 +10,8 @@ import Login from './paginas/Login'
 import Modelo from './paginas/Modelo'
 import Mudanza from './paginas/Mudanza'
 import Mudanzas from './paginas/Mudanzas'
+import Placa from './paginas/Placa'
+import Placas from './paginas/Placas'
 import { useYo } from './sesion'
 
 function ConSesion({ children }: { children: ReactNode }) {
@@ -43,6 +45,8 @@ export default function App() {
         <Route path="etiquetas" element={<Etiquetas />} />
         <Route path="mudanzas" element={<Mudanzas />} />
         <Route path="mudanzas/:id" element={<Mudanza />} />
+        <Route path="placas" element={<Placas />} />
+        <Route path="placas/:id" element={<Placa />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

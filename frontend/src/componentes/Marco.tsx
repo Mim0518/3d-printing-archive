@@ -17,7 +17,7 @@ const SECCIONES = [
   { ruta: '/frio', nombre: 'Almacenamiento frío', fase: 8 },
   { ruta: '/bandeja', nombre: 'Por catalogar', fase: 9 },
 ]
-const FASE_ACTUAL = 2
+const FASE_ACTUAL = 4
 
 export default function Marco() {
   const [abierto, { toggle, close }] = useDisclosure()

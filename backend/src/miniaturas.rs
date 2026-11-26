@@ -1,5 +1,6 @@
-//! Miniaturas: una imagen por malla (render de f3d sin pantalla) y por imagen (reducida), guardadas como WebP de
-//! 512 y 128 px en una caché en disco.
+//! Miniaturas: una imagen por malla (render de f3d sin pantalla), por imagen (reducida) y por escena o laminado
+//! que traiga vista previa adentro (ver `lectores`), guardadas como WebP de 512 y 128 px en una caché en disco.
+//! Un 3MF que trae la imagen de su placa (proyectos de Orca, Bambu, Prusa) la usa en lugar del render.
 //!
 //! - La clave de cada miniatura es inode + tamaño + fecha del archivo: los nombres de un mismo archivo (enlaces
 //!   duros) comparten miniatura y solo se renderiza una vez; si el archivo cambia, cambia la clave.
@@ -28,9 +29,12 @@ pub const EXT_IMAGEN: [&str; 6] = ["jpg", "jpeg", "png", "webp", "gif", "bmp"];
 pub const TAMANOS: [u32; 2] = [512, 128];
 const LIMITE_RENDER: Duration = Duration::from_secs(180);
 
-/// Lo que se repite en `WHERE` para elegir los archivos que llevan miniatura.
+/// Lo que se repite en `WHERE` para elegir los archivos que llevan miniatura. Las escenas y los laminados, solo si
+/// la detección de placas vio que traen vista previa.
 pub const SQL_RENDERIZABLE: &str = "((a.tipo = 'malla' AND a.ext IN ('stl', 'obj', '3mf', 'ply'))
-     OR (a.tipo = 'imagen' AND a.ext IN ('jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp')))";
+     OR (a.tipo = 'imagen' AND a.ext IN ('jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'))
+     OR (a.tipo IN ('escena', 'laminado') AND EXISTS (
+         SELECT 1 FROM datos_placa dp WHERE dp.archivo_id = a.id AND dp.vista_previa = 1)))";
 
 #[derive(Debug, Clone)]
 pub struct Opciones {
@@ -72,6 +76,11 @@ pub fn guardar_webp(origen: &Path, dir: &Path, clave: &str) -> Result<(), String
         .map_err(|e| format!("formato: {e}"))?
         .decode()
         .map_err(|e| format!("no se pudo leer la imagen: {e}"))?;
+    guardar_imagen(&img, dir, clave)
+}
+
+/// Guarda una imagen ya leída en la caché (512 y 128 px, sin agrandar).
+pub fn guardar_imagen(img: &image::DynamicImage, dir: &Path, clave: &str) -> Result<(), String> {
     for t in TAMANOS {
         let destino = ruta_cache(dir, clave, t);
         if let Some(p) = destino.parent() {
@@ -137,6 +146,7 @@ struct Grupo {
     clave: String,
     ruta: String,
     tipo: String,
+    ext: String,
     archivos: Vec<i64>,
 }
 
@@ -147,6 +157,32 @@ async fn generar_grupo(op: Arc<Opciones>, raiz: Arc<PathBuf>, g: &Grupo) -> Resu
         return tokio::task::spawn_blocking(move || guardar_webp(&archivo, &dir, &clave))
             .await
             .map_err(|e| e.to_string())?;
+    }
+    if g.tipo == "escena" || g.tipo == "laminado" {
+        let (dir, clave, ext) = (op.dir.clone(), g.clave.clone(), g.ext.clone());
+        return tokio::task::spawn_blocking(move || {
+            match crate::lectores::vista_previa(&archivo, &ext)? {
+                Some(img) => guardar_imagen(&img, &dir, &clave),
+                None => Err("no trae vista previa".into()),
+            }
+        })
+        .await
+        .map_err(|e| e.to_string())?;
+    }
+    if g.ext == "3mf" {
+        // un 3MF de laminador trae la imagen de su placa; si no la trae, se renderiza
+        let (dir, clave, ruta) = (op.dir.clone(), g.clave.clone(), archivo.clone());
+        let hecho = tokio::task::spawn_blocking(move || {
+            match crate::lectores::vista_previa(&ruta, "3mf") {
+                Ok(Some(img)) => guardar_imagen(&img, &dir, &clave).is_ok(),
+                _ => false,
+            }
+        })
+        .await
+        .unwrap_or(false);
+        if hecho {
+            return Ok(());
+        }
     }
     let png = op.dir.join("tmp").join(format!("{}.png", g.clave));
     let r = render_malla(&op, &archivo, &png).await;
@@ -188,11 +224,21 @@ async fn registrar(
     Ok(())
 }
 
-/// Genera las miniaturas que faltan (de todos los modelos o de los indicados).
+/// Qué miniaturas generar.
+#[derive(Debug, Default, Clone)]
+pub struct Cuales {
+    /// Solo las de estos modelos.
+    pub modelo_ids: Option<Vec<i64>>,
+    /// Solo los archivos de las placas: escenas y laminados con vista previa y proyectos 3MF (rápidas: salen de
+    /// la imagen que traen adentro).
+    pub solo_placas: bool,
+}
+
+/// Genera las miniaturas que faltan (de todo o de lo indicado en `cuales`).
 pub async fn generar(
     pool: &SqlitePool,
     op: Opciones,
-    modelo_ids: Option<Vec<i64>>,
+    cuales: Cuales,
     forzar: bool,
     progreso: Arc<AtomicU64>,
 ) -> anyhow::Result<Resultado> {
@@ -203,15 +249,21 @@ pub async fn generar(
     .await?
     .context("no hay biblioteca principal")?;
     let sql = format!(
-        "SELECT a.id, a.ruta, a.tipo, a.inode, a.bytes, a.mtime_ms, a.modelo_id, mi.clave, mi.estado
+        "SELECT a.id, a.ruta, a.tipo, a.ext, a.inode, a.bytes, a.mtime_ms, a.modelo_id, mi.clave, mi.estado
          FROM archivos a JOIN bibliotecas b ON b.id = a.biblioteca_id AND b.tipo = 'principal'
          LEFT JOIN miniaturas mi ON mi.archivo_id = a.id
-         WHERE a.estado = 'presente' AND {SQL_RENDERIZABLE}
-         ORDER BY a.modelo_id, (a.tipo = 'imagen') DESC, a.bytes DESC"
+         WHERE a.estado = 'presente' AND {SQL_RENDERIZABLE} {}
+         ORDER BY a.modelo_id, (a.tipo = 'imagen') DESC, a.bytes DESC",
+        if cuales.solo_placas {
+            "AND EXISTS (SELECT 1 FROM placa_archivos pa WHERE pa.archivo_id = a.id)"
+        } else {
+            ""
+        }
     );
     #[allow(clippy::type_complexity)]
     let filas: Vec<(
         i64,
+        String,
         String,
         String,
         i64,
@@ -227,8 +279,8 @@ pub async fn generar(
     let mut grupos: Vec<Grupo> = Vec::new();
     let mut por_clave: HashMap<String, usize> = HashMap::new();
     let mut ya_ok: Vec<(i64, String)> = Vec::new();
-    for (id, ruta, tipo, inode, bytes, mtime, modelo, mi_clave, mi_estado) in filas {
-        if let Some(ids) = &modelo_ids
+    for (id, ruta, tipo, ext, inode, bytes, mtime, modelo, mi_clave, mi_estado) in filas {
+        if let Some(ids) = &cuales.modelo_ids
             && !modelo.is_some_and(|m| ids.contains(&m))
         {
             continue;
@@ -252,6 +304,7 @@ pub async fn generar(
                     clave: k,
                     ruta,
                     tipo,
+                    ext,
                     archivos: vec![id],
                 });
             }
@@ -304,8 +357,9 @@ pub async fn generar(
     Ok(res)
 }
 
-/// La portada de un modelo: la elegida a mano o, si no, la imagen con miniatura que más parezca portada, o la
-/// malla más pesada con miniatura. Es una expresión SQL sobre el alias `m` de `modelos`.
+/// La portada de un modelo: la elegida a mano o, si no, la imagen con miniatura que más parezca portada, la
+/// malla más pesada con miniatura o la vista previa de una escena o un laminado. Es una expresión SQL sobre el
+/// alias `m` de `modelos`.
 pub const SQL_PORTADA: &str = "coalesce(m.portada_archivo_id,
     (SELECT a.id FROM archivos a JOIN miniaturas mi ON mi.archivo_id = a.id AND mi.estado = 'ok'
      WHERE a.modelo_id = m.id AND a.estado = 'presente' AND a.tipo = 'imagen'
@@ -313,4 +367,7 @@ pub const SQL_PORTADA: &str = "coalesce(m.portada_archivo_id,
                OR lower(a.nombre) LIKE '%render%') DESC, a.bytes DESC LIMIT 1),
     (SELECT a.id FROM archivos a JOIN miniaturas mi ON mi.archivo_id = a.id AND mi.estado = 'ok'
      WHERE a.modelo_id = m.id AND a.estado = 'presente' AND a.tipo = 'malla'
-     ORDER BY a.bytes DESC LIMIT 1))";
+     ORDER BY a.bytes DESC LIMIT 1),
+    (SELECT a.id FROM archivos a JOIN miniaturas mi ON mi.archivo_id = a.id AND mi.estado = 'ok'
+     WHERE a.modelo_id = m.id AND a.estado = 'presente' AND a.tipo IN ('escena', 'laminado')
+     ORDER BY a.tipo = 'escena' DESC, a.bytes DESC LIMIT 1))";

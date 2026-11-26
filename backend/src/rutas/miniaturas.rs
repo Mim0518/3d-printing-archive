@@ -36,6 +36,9 @@ struct PedidoMiniaturas {
     modelo_ids: Option<Vec<i64>>,
     #[serde(default)]
     forzar: bool,
+    /// Solo las vistas previas de escenas y laminados.
+    #[serde(default)]
+    solo_placas: bool,
 }
 
 async fn generar(
@@ -48,7 +51,10 @@ async fn generar(
         st.pool.clone(),
         st.trabajos.clone(),
         st.config.opciones_miniaturas(),
-        p.modelo_ids,
+        miniaturas::Cuales {
+            modelo_ids: p.modelo_ids,
+            solo_placas: p.solo_placas,
+        },
         p.forzar,
     )
     .await?;
