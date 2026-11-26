@@ -153,6 +153,7 @@ pub async fn importar_catalogo(
     reconstruir_busqueda(pool).await?;
     ligar_archivos(pool).await?;
     actualizar_estadisticas(pool).await?;
+    crate::edicion::recalcular(pool, None).await?;
     Ok(res)
 }
 

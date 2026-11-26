@@ -26,6 +26,9 @@ export interface ModeloFila {
   bytes: number
   n_frio: number
   bytes_frio: number
+  ruta_nueva: string
+  pendiente: boolean
+  n_avisos: number
   etiquetas: string[]
 }
 
@@ -69,8 +72,72 @@ export interface CopiaFrio {
 
 export interface Ficha extends ModeloFila {
   notas: string
+  avisos: string[]
   archivos: ArchivoFila[]
   copias_frio: CopiaFrio[]
+}
+
+export interface Cambio {
+  campo: string
+  antes: string
+  despues: string
+  usuario: string
+  fecha: number
+}
+
+export interface Etiqueta {
+  id: number
+  nombre: string
+  tipo: string
+  color: string
+  modelos: number
+}
+
+export interface ModeloPlan {
+  id: number
+  nombre: string
+  de: string
+  a: string
+  archivos: number
+  bytes: number
+}
+
+export interface Plan {
+  id: number
+  modelos: ModeloPlan[]
+  archivos: number
+  bytes: number
+  conflictos: string[]
+  avisos: string[]
+  se_quedan: number
+  rutas_largas: number
+}
+
+export interface MudanzaFila {
+  id: number
+  estado: 'plan' | 'en_curso' | 'ejecutada' | 'con_errores' | 'deshecha' | 'descartada'
+  usuario: string
+  creada: number
+  ejecutada: number | null
+  deshecha: number | null
+  modelos: number
+  archivos: number
+  bytes: number
+  conflictos: number
+}
+
+export interface MudanzaDetalle {
+  id: number
+  estado: MudanzaFila['estado']
+  usuario: string
+  creada: number
+  ejecutada: number | null
+  deshecha: number | null
+  deshacible: boolean
+  plan: Plan
+  archivos_por_estado: Record<string, number>
+  errores: { archivo: string; mensaje: string }[]
+  muestra: { de: string; a: string }[]
 }
 
 export interface Trabajo {
@@ -79,11 +146,13 @@ export interface Trabajo {
   estado: 'en_curso' | 'terminado' | 'fallo'
   detalle: string
   resultado: {
-    archivos: number
-    nuevos: number
-    cambiados: number
-    iguales: number
-    faltan: number
+    archivos?: number
+    nuevos?: number
+    cambiados?: number
+    iguales?: number
+    faltan?: number
+    movidos?: number
+    carpetas_quitadas?: number
     errores: string[]
   } | null
   creado: number

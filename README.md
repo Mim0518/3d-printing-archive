@@ -13,7 +13,7 @@ Tecnología:
 - Backend: Rust (Axum + SQLite). Frontend: React + Vite + TypeScript (Mantine).
 - Corre en un mini PC en casa; desde fuera se entra por Tailscale.
 
-Estado: **fase 1** (inventario y catálogo en lectura: escaneo del disco, catálogo importado de la hoja, búsqueda, ficha de cada modelo y lo que está en Drive). Ver la [especificación](docs/especificacion.md) y la [guía de instalación](deploy/README.md).
+Estado: **fase 2** (el catálogo se edita en la app: campos, etiquetas, edición de varios a la vez, avisos de las reglas de nombres, historial, exportación a CSV y mudanzas de carpetas con plan y deshacer). Ver la [especificación](docs/especificacion.md) y la [guía de instalación](deploy/README.md).
 
 ## Desarrollo
 

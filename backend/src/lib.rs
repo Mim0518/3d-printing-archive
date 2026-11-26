@@ -4,10 +4,12 @@ pub mod auth;
 pub mod catalogo;
 pub mod config;
 pub mod db;
+pub mod edicion;
 pub mod error;
 pub mod estructura;
 pub mod frio;
 pub mod inventario;
+pub mod mudanzas;
 pub mod rutas;
 pub mod trabajos;
 

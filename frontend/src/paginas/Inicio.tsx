@@ -92,8 +92,8 @@ function Escaneo({ resumen }: { resumen: Resumen }) {
       )}
       {t && t.estado === 'terminado' && t.resultado && iniciar.isSuccess && (
         <Text size="sm" mt="sm">
-          Listo: {n(t.resultado.archivos)} archivos · {n(t.resultado.nuevos)} nuevos ·{' '}
-          {n(t.resultado.cambiados)} cambiados · {n(t.resultado.faltan)} ya no están
+          Listo: {n(t.resultado.archivos ?? 0)} archivos · {n(t.resultado.nuevos ?? 0)} nuevos ·{' '}
+          {n(t.resultado.cambiados ?? 0)} cambiados · {n(t.resultado.faltan ?? 0)} ya no están
           {t.resultado.errores.length > 0 && ` · ${t.resultado.errores.length} errores`}
         </Text>
       )}

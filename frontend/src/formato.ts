@@ -24,6 +24,15 @@ export function cuando(segundosUnix: number | null | undefined): string {
   return fecha.format(new Date(segundosUnix * 1000))
 }
 
+/** La misma regla que la columna J de la antigua hoja (y que el servidor). */
+export function rutaNueva(juego: string, faccion: string, nombre: string, estudio: string, sub: string): string {
+  let p = juego === 'D&D' ? 'DND' : `Wargames/${juego}`
+  if (faccion) p += `/${faccion}`
+  if (nombre) p += `/${nombre}${estudio ? ` (${estudio})` : ''}`
+  if (sub) p += `/${sub}`
+  return p
+}
+
 /** Nombre para mostrar: las filas de facción completa (OPR, Game Aids…) no tienen Modelo. */
 export function titulo(m: { nombre: string; faccion: string; carpeta: string }): string {
   return m.nombre || m.faccion || m.carpeta.split('/').pop() || '(sin nombre)'

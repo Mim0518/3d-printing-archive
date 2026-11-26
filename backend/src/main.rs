@@ -122,6 +122,8 @@ async fn servir(config: Config) -> anyhow::Result<()> {
     let pool = db::abrir(&config.base).await?;
     biblioteca(&pool, &config).await?;
     trabajos::marcar_interrumpidos(&pool).await?;
+    // ruta nueva, pendientes y avisos al día (por si cambiaron las reglas entre versiones)
+    printing_archive::edicion::recalcular(&pool, None).await?;
     let direccion = config.direccion;
     match &config.estaticos {
         Some(d) => tracing::info!("frontend: {}", d.display()),

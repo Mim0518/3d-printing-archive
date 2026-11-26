@@ -8,6 +8,8 @@ import { useLogout, useYo } from '../sesion'
 const SECCIONES = [
   { ruta: '/', nombre: 'Inicio', fase: 0 },
   { ruta: '/catalogo', nombre: 'Catálogo', fase: 1 },
+  { ruta: '/etiquetas', nombre: 'Etiquetas', fase: 2 },
+  { ruta: '/mudanzas', nombre: 'Mudanzas', fase: 2 },
   { ruta: '/placas', nombre: 'Placas y escenas', fase: 4 },
   { ruta: '/impresoras', nombre: 'Impresoras y materiales', fase: 5 },
   { ruta: '/existencias', nombre: 'Existencias', fase: 6 },
@@ -15,7 +17,7 @@ const SECCIONES = [
   { ruta: '/frio', nombre: 'Almacenamiento frío', fase: 8 },
   { ruta: '/bandeja', nombre: 'Por catalogar', fase: 9 },
 ]
-const FASE_ACTUAL = 1
+const FASE_ACTUAL = 2
 
 export default function Marco() {
   const [abierto, { toggle, close }] = useDisclosure()

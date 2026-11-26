@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sqlx::{QueryBuilder, Sqlite};
 
-use crate::{AppState, auth::Usuario, catalogo::consulta_fts, error::ApiError};
+use crate::{AppState, auth::Usuario, catalogo::consulta_fts, edicion, error::ApiError};
 
 pub fn rutas() -> Router<AppState> {
     Router::new()
@@ -120,6 +120,10 @@ pub struct Filtros {
     frio: Option<String>,
     /// «si» o «no»
     revisado: Option<String>,
+    /// «si»: solo los que no están en su ruta nueva
+    pendiente: Option<String>,
+    /// «si»: solo los que tienen avisos de las reglas de nombres
+    avisos: Option<String>,
     /// nombre (por omisión) | tamano | archivos | reciente
     orden: Option<String>,
     pagina: Option<i64>,
@@ -142,6 +146,9 @@ struct FilaModelo {
     bytes: i64,
     n_frio: i64,
     bytes_frio: i64,
+    ruta_nueva: String,
+    pendiente: bool,
+    n_avisos: i64,
     #[serde(skip)]
     etiquetas_txt: Option<String>,
 }
@@ -193,6 +200,12 @@ fn condiciones(qb: &mut QueryBuilder<Sqlite>, f: &Filtros) {
         }
         _ => {}
     }
+    if no_vacio(&f.pendiente) == Some("si") {
+        qb.push(" AND m.pendiente = 1");
+    }
+    if no_vacio(&f.avisos) == Some("si") {
+        qb.push(" AND m.n_avisos > 0");
+    }
 }
 
 async fn lista(
@@ -209,7 +222,7 @@ async fn lista(
 
     let mut qb: QueryBuilder<Sqlite> = QueryBuilder::new(
         "SELECT m.id, m.carpeta, m.juego, m.faccion, m.nombre, m.estudio, m.subcarpeta, m.confianza, m.revisado,
-                m.n_archivos, m.n_mallas, m.bytes, m.n_frio, m.bytes_frio,
+                m.n_archivos, m.n_mallas, m.bytes, m.n_frio, m.bytes_frio, m.ruta_nueva, m.pendiente, m.n_avisos,
                 (SELECT group_concat(e.nombre, char(31)) FROM modelo_etiquetas me
                  JOIN etiquetas e ON e.id = me.etiqueta_id WHERE me.modelo_id = m.id) AS etiquetas_txt
          FROM modelos m",
@@ -307,7 +320,7 @@ async fn ficha(
     let p = &st.pool;
     let m: Option<FilaModelo> = sqlx::query_as(
         "SELECT m.id, m.carpeta, m.juego, m.faccion, m.nombre, m.estudio, m.subcarpeta, m.confianza, m.revisado,
-                m.n_archivos, m.n_mallas, m.bytes, m.n_frio, m.bytes_frio,
+                m.n_archivos, m.n_mallas, m.bytes, m.n_frio, m.bytes_frio, m.ruta_nueva, m.pendiente, m.n_avisos,
                 (SELECT group_concat(e.nombre, char(31)) FROM modelo_etiquetas me
                  JOIN etiquetas e ON e.id = me.etiqueta_id WHERE me.modelo_id = m.id) AS etiquetas_txt
          FROM modelos m WHERE m.id = ?",
@@ -342,6 +355,10 @@ async fn ficha(
     let mut v = serde_json::to_value(&m).unwrap_or(Value::Null);
     v["etiquetas"] = json!(et);
     v["notas"] = json!(notas);
+    if let Some(c) = edicion::campos(p, id).await? {
+        let et = edicion::etiquetas_de(p, id).await?;
+        v["avisos"] = json!(edicion::avisos(&c, &et));
+    }
     v["archivos"] = json!(archivos);
     v["copias_frio"] = json!(copias);
     Ok(Json(v))

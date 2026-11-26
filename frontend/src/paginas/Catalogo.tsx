@@ -1,6 +1,9 @@
 import {
   Alert,
   Badge,
+  Button,
+  Checkbox,
+  Drawer,
   Group,
   Loader,
   Pagination,
@@ -19,17 +22,22 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 
 import { api } from '../api'
+import EdicionLote from '../componentes/EdicionLote'
 import { n, tamano, titulo } from '../formato'
 import type { ListaModelos, OpcionesFiltros } from '../tipos'
 
 const POR_PAGINA = 50
-const CLAVES = ['q', 'juego', 'faccion', 'estudio', 'etiqueta', 'frio', 'revisado', 'orden', 'pagina'] as const
+const CLAVES = [
+  'q', 'juego', 'faccion', 'estudio', 'etiqueta', 'frio', 'revisado', 'pendiente', 'avisos', 'orden', 'pagina',
+] as const
 
 export default function Catalogo() {
   const [params, setParams] = useSearchParams()
   const navegar = useNavigate()
   const [texto, setTexto] = useState(params.get('q') ?? '')
   const [buscado] = useDebouncedValue(texto, 300)
+  const [seleccion, setSeleccion] = useState<Set<number>>(new Set())
+  const [lote, setLote] = useState(false)
 
   const poner = (cambios: Partial<Record<(typeof CLAVES)[number], string | null>>) => {
     const p = new URLSearchParams(params)
@@ -70,16 +78,41 @@ export default function Catalogo() {
     .map((f) => ({ value: f.nombre, label: `${f.nombre} (${f.modelos})` }))
   const unicas = Array.from(new Map(facciones.map((f) => [f.value, f])).values())
   const paginas = lista.data ? Math.max(1, Math.ceil(lista.data.total / POR_PAGINA)) : 1
+  const enPagina = lista.data?.modelos.map((m) => m.id) ?? []
+  const todosEnPagina = enPagina.length > 0 && enPagina.every((id) => seleccion.has(id))
+  const alternar = (id: number) =>
+    setSeleccion((s) => {
+      const n = new Set(s)
+      if (n.has(id)) n.delete(id)
+      else n.add(id)
+      return n
+    })
+  const estado = params.get('pendiente') ? 'pendiente' : params.get('avisos') ? 'avisos' : params.get('revisado') === 'no' ? 'sin_revisar' : null
 
   return (
     <Stack>
       <Group justify="space-between" align="flex-end">
         <Title order={2}>Catálogo</Title>
-        {lista.data && (
-          <Text c="dimmed" size="sm">
-            {n(lista.data.total)} modelos
-          </Text>
-        )}
+        <Group gap="xs">
+          {lista.data && (
+            <Text c="dimmed" size="sm">
+              {n(lista.data.total)} modelos
+            </Text>
+          )}
+          {seleccion.size > 0 && (
+            <>
+              <Button size="xs" onClick={() => setLote(true)}>
+                Editar {seleccion.size} seleccionados
+              </Button>
+              <Button size="xs" variant="subtle" onClick={() => setSeleccion(new Set())}>
+                Quitar selección
+              </Button>
+            </>
+          )}
+          <Button size="xs" variant="default" component="a" href="/api/v1/exportar/catalogo.csv">
+            Exportar CSV
+          </Button>
+        </Group>
       </Group>
 
       <TextInput
@@ -135,6 +168,24 @@ export default function Catalogo() {
           miw={150}
         />
         <Select
+          placeholder="Estado"
+          clearable
+          data={[
+            { value: 'pendiente', label: 'Pendientes de mover' },
+            { value: 'avisos', label: 'Con avisos' },
+            { value: 'sin_revisar', label: 'Sin revisar' },
+          ]}
+          value={estado}
+          onChange={(v) =>
+            poner({
+              pendiente: v === 'pendiente' ? 'si' : null,
+              avisos: v === 'avisos' ? 'si' : null,
+              revisado: v === 'sin_revisar' ? 'no' : null,
+            })
+          }
+          miw={160}
+        />
+        <Select
           placeholder="Orden"
           data={[
             { value: 'nombre', label: 'Por juego y nombre' },
@@ -155,6 +206,23 @@ export default function Catalogo() {
           <Table highlightOnHover striped miw={760} style={{ opacity: lista.isPlaceholderData ? 0.6 : 1 }}>
             <Table.Thead>
               <Table.Tr>
+                <Table.Th w={36}>
+                  <Checkbox
+                    aria-label="Seleccionar la página"
+                    checked={todosEnPagina}
+                    indeterminate={!todosEnPagina && enPagina.some((id) => seleccion.has(id))}
+                    onChange={() =>
+                      setSeleccion((s) => {
+                        const n = new Set(s)
+                        for (const id of enPagina) {
+                          if (todosEnPagina) n.delete(id)
+                          else n.add(id)
+                        }
+                        return n
+                      })
+                    }
+                  />
+                </Table.Th>
                 <Table.Th>Modelo</Table.Th>
                 <Table.Th>Facción / tipo</Table.Th>
                 <Table.Th>Estudio</Table.Th>
@@ -166,10 +234,30 @@ export default function Catalogo() {
             <Table.Tbody>
               {lista.data?.modelos.map((m) => (
                 <Table.Tr key={m.id} onClick={() => navegar(`/catalogo/${m.id}`)} style={{ cursor: 'pointer' }}>
+                  <Table.Td onClick={(e) => e.stopPropagation()}>
+                    <Checkbox aria-label="Seleccionar" checked={seleccion.has(m.id)} onChange={() => alternar(m.id)} />
+                  </Table.Td>
                   <Table.Td>
                     <Text size="sm" fw={500}>
                       {titulo(m)}
                     </Text>
+                    <Group gap={4}>
+                      {m.pendiente && (
+                        <Badge size="xs" color="orange" variant="light">
+                          por mover
+                        </Badge>
+                      )}
+                      {m.n_avisos > 0 && (
+                        <Badge size="xs" color="yellow" variant="light">
+                          {m.n_avisos} {m.n_avisos === 1 ? 'aviso' : 'avisos'}
+                        </Badge>
+                      )}
+                      {!m.revisado && (
+                        <Badge size="xs" color="gray" variant="outline">
+                          sin revisar
+                        </Badge>
+                      )}
+                    </Group>
                     {m.subcarpeta && (
                       <Text size="xs" c="dimmed">
                         {m.subcarpeta}
@@ -232,6 +320,17 @@ export default function Catalogo() {
           />
         </Group>
       )}
+      <Drawer opened={lote} onClose={() => setLote(false)} title="Editar varios modelos" position="right" size="md">
+        {lote && (
+          <EdicionLote
+            ids={[...seleccion]}
+            alTerminar={() => {
+              setLote(false)
+              setSeleccion(new Set())
+            }}
+          />
+        )}
+      </Drawer>
     </Stack>
   )
 }

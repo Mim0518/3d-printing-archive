@@ -4,9 +4,12 @@ import { Navigate, Route, Routes, useLocation } from 'react-router'
 
 import Marco from './componentes/Marco'
 import Catalogo from './paginas/Catalogo'
+import Etiquetas from './paginas/Etiquetas'
 import Inicio from './paginas/Inicio'
 import Login from './paginas/Login'
 import Modelo from './paginas/Modelo'
+import Mudanza from './paginas/Mudanza'
+import Mudanzas from './paginas/Mudanzas'
 import { useYo } from './sesion'
 
 function ConSesion({ children }: { children: ReactNode }) {
@@ -37,6 +40,9 @@ export default function App() {
         <Route index element={<Inicio />} />
         <Route path="catalogo" element={<Catalogo />} />
         <Route path="catalogo/:id" element={<Modelo />} />
+        <Route path="etiquetas" element={<Etiquetas />} />
+        <Route path="mudanzas" element={<Mudanzas />} />
+        <Route path="mudanzas/:id" element={<Mudanza />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

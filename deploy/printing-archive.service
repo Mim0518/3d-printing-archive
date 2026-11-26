@@ -13,14 +13,13 @@ ExecStart=/opt/printing-archive/printing-archive servir
 Restart=on-failure
 RestartSec=5
 
-# Endurecimiento: el servicio solo escribe en su carpeta de datos.
+# Endurecimiento: el servicio solo escribe en su carpeta de datos y en la colección (las mudanzas de la fase 2
+# mueven carpetas; nunca sobrescriben y se pueden deshacer).
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
-ReadWritePaths=/var/lib/printing-archive
-# La colección, de solo lectura por ahora. Desde la fase 2 (mudanzas) pasa a ReadWritePaths.
-ReadOnlyPaths=-/srv/3dp
+ReadWritePaths=/var/lib/printing-archive -/srv/3dp
 
 [Install]
 WantedBy=multi-user.target

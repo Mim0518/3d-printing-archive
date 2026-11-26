@@ -3,9 +3,11 @@ import {
   Anchor,
   Badge,
   Breadcrumbs,
+  Button,
   Card,
   Code,
   Group,
+  List,
   Loader,
   ScrollArea,
   SegmentedControl,
@@ -16,13 +18,67 @@ import {
   Title,
   Tooltip,
 } from '@mantine/core'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router'
+import { Link, useNavigate, useParams } from 'react-router'
 
 import { api } from '../api'
-import { COLOR_TIPO, n, tamano, titulo } from '../formato'
-import type { ArchivoFila, Ficha } from '../tipos'
+import EditorModelo from '../componentes/EditorModelo'
+import { COLOR_TIPO, cuando, n, tamano, titulo } from '../formato'
+import type { ArchivoFila, Cambio, Ficha, Plan } from '../tipos'
+
+const NOMBRE_CAMPO: Record<string, string> = {
+  juego: 'Juego',
+  faccion: 'Facción',
+  nombre: 'Modelo',
+  estudio: 'Estudio',
+  subcarpeta: 'Subcarpeta',
+  confianza: 'Confianza',
+  notas: 'Notas',
+  revisado: 'Revisado',
+  etiquetas: 'Etiquetas',
+  carpeta: 'Carpeta (mudanza)',
+}
+
+function Historial({ id }: { id: number }) {
+  const h = useQuery({ queryKey: ['historial', id], queryFn: () => api<Cambio[]>(`/modelos/${id}/historial`) })
+  if (!h.data?.length) return null
+  return (
+    <Card withBorder>
+      <Text fw={500} mb="xs">
+        Historial de cambios
+      </Text>
+      <ScrollArea>
+        <Table miw={600}>
+          <Table.Tbody>
+            {h.data.map((c, i) => (
+              <Table.Tr key={i}>
+                <Table.Td>
+                  <Text size="xs" c="dimmed" style={{ whiteSpace: 'nowrap' }}>
+                    {cuando(c.fecha)} · {c.usuario}
+                  </Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm" fw={500}>
+                    {NOMBRE_CAMPO[c.campo] ?? c.campo}
+                  </Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm" c="dimmed" td="line-through" style={{ wordBreak: 'break-word' }}>
+                    {c.antes || '—'}
+                  </Text>
+                  <Text size="sm" style={{ wordBreak: 'break-word' }}>
+                    {c.despues || '—'}
+                  </Text>
+                </Table.Td>
+              </Table.Tr>
+            ))}
+          </Table.Tbody>
+        </Table>
+      </ScrollArea>
+    </Card>
+  )
+}
 
 function Campo({ nombre, valor }: { nombre: string; valor: string }) {
   return (
@@ -43,7 +99,14 @@ function relativa(a: ArchivoFila, carpeta: string): string {
 export default function Modelo() {
   const { id } = useParams()
   const [tipo, setTipo] = useState('todos')
+  const [editando, setEditando] = useState(false)
+  const navegar = useNavigate()
   const f = useQuery({ queryKey: ['modelo', id], queryFn: () => api<Ficha>(`/modelos/${id}`) })
+  const mover = useMutation({
+    mutationFn: () =>
+      api<Plan>('/mudanzas/plan', { method: 'POST', body: JSON.stringify({ modelo_ids: [Number(id)] }) }),
+    onSuccess: (p) => navegar(`/mudanzas/${p.id}`),
+  })
 
   const tipos = useMemo(() => {
     const c = new Map<string, number>()
@@ -76,6 +139,7 @@ export default function Modelo() {
         )}
       </Breadcrumbs>
 
+      <Group justify="space-between" align="flex-start" wrap="nowrap">
       <div>
         <Title order={2}>
           {titulo(m)}
@@ -106,6 +170,44 @@ export default function Modelo() {
           )}
         </Group>
       </div>
+        {!editando && (
+          <Button variant="light" onClick={() => setEditando(true)}>
+            Editar
+          </Button>
+        )}
+      </Group>
+
+      {editando && (
+        <Card withBorder>
+          <EditorModelo modelo={m} alTerminar={() => setEditando(false)} />
+        </Card>
+      )}
+
+      {m.avisos.length > 0 && (
+        <Alert color="yellow" variant="light" title="Avisos de las reglas de nombres">
+          <List size="sm">
+            {m.avisos.map((a) => (
+              <List.Item key={a}>{a}</List.Item>
+            ))}
+          </List>
+        </Alert>
+      )}
+
+      {m.pendiente && (
+        <Alert color="orange" variant="light" title="Pendiente de mover">
+          <Text size="sm">
+            Sus campos dicen que va en <Code>{m.ruta_nueva}</Code>.
+          </Text>
+          {mover.error && (
+            <Text size="sm" c="red" mt={4}>
+              {mover.error.message}
+            </Text>
+          )}
+          <Button size="xs" mt="xs" variant="light" color="orange" loading={mover.isPending} onClick={() => mover.mutate()}>
+            Armar el plan para moverlo
+          </Button>
+        </Alert>
+      )}
 
       <Card withBorder>
         <SimpleGrid cols={{ base: 2, sm: 4 }}>
@@ -246,6 +348,8 @@ export default function Modelo() {
           </ScrollArea>
         </Card>
       )}
+
+      <Historial id={m.id} />
     </Stack>
   )
 }
