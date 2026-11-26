@@ -1,6 +1,6 @@
 # 3D Printing Archive: especificación
 
-Versión 0.3, borrador del 26 de noviembre de 2026. La app se va a construir por fases, y este documento crece con ella. Lo que todavía no está decidido está en la sección 12.
+Versión 0.4, borrador del 26 de noviembre de 2026. La app se va a construir por fases, y este documento crece con ella. Lo que todavía no está decidido está en la sección 12.
 
 ## 1. Objetivo
 
@@ -300,6 +300,8 @@ Son las mismas reglas con las que se limpió la colección:
 ## 11. Fases
 
 Cada fase termina con algo que se puede usar y se prueba primero en esta PC.
+
+**Avance:** fase 0 y fase 1 terminadas (26 de noviembre de 2026), probadas con la colección real y con el CI en verde.
 
 | Fase | Qué incluye | Terminada cuando |
 |---|---|---|
