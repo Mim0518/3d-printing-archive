@@ -20,7 +20,7 @@ El motivo principal es el inventario para vender impresiones: hoy es difícil ll
 | Backend | Rust: Axum (API JSON) + Tokio + SQLx sobre SQLite |
 | Frontend | Aplicación aparte con React + Vite + TypeScript. En producción, el mismo binario de Rust sirve los archivos compilados |
 | Dónde corre | Un mini PC en casa. El desarrollo y las pruebas se hacen en la PC actual |
-| Equipo | Lenovo ThinkCentre Tiny: Intel Core i5 con gráficos UHD 630 (8.ª o 9.ª generación), 16 GB de RAM y SSD de 256 GB |
+| Equipo | Lenovo ThinkCentre M920q Tiny: Intel Core i5 de 8.ª o 9.ª generación con gráficos UHD 630, 16 GB de RAM y SSD NVMe de 256 GB. Admite dos discos: uno M.2 y uno SATA de 2.5" |
 | Sistema | Ubuntu Server 24.04 LTS, en lugar del Windows Pro que trae |
 | Archivos | La colección se muda al mini PC, a un SSD nuevo (sección 10). La PC actual la monta por red para laminar |
 | Acceso | La red de casa y, desde fuera, Tailscale. Nada queda público en internet. Un solo usuario con contraseña |
@@ -284,9 +284,11 @@ Son las mismas reglas con las que se limpió la colección:
 2. Importar la pestaña Catálogo, exportada con rclone, con las 725 filas y las correcciones del usuario.
 3. Listar Drive con MD5 (`3DP-archivo` y `3DP-cuarentena`) e importarlo como copias en frío.
 4. Importar `3DP/Printers` como impresoras, perfiles y documentos.
-5. Mudar la colección al mini PC. Hoy está en un Seagate IronWolf de 1 TB de 3.5", que no cabe en el ThinkCentre Tiny, y el SSD de 256 GB del mini PC no alcanza para 326 GB. Por eso se compra un SSD:
-   - un NVMe de 1–2 TB en lugar del de 256 GB, o un SSD SATA de 2.5" en la bahía si el modelo la tiene (los M720q y M920q suelen traerla);
-   - con 1 TB quedan unos 600 GB libres; con 2 TB hay margen para bajar seguido del almacenamiento frío.
+5. Mudar la colección al mini PC. Hoy está en un Seagate IronWolf de 1 TB de 3.5", que no cabe en el M920q, y el SSD de 256 GB del mini PC no alcanza para 326 GB. Por eso se compra un SSD. El M920q admite un M.2 y un SATA de 2.5" (7 mm):
+   - **Opción preferida:** un SSD SATA de 2.5" en la bahía para la colección, y el NVMe de 256 GB se queda con el sistema. Hace falta la charola y el cable SATA de la bahía, que no todas las unidades traen, y la bahía no se puede usar junto con una tarjeta PCIe.
+   - Si no trae charola ni cable: un NVMe M.2 2280 de 1–2 TB en lugar del de 256 GB, con todo en él.
+   - Lenovo lista discos de hasta 1 TB porque es lo que vendía con el equipo, pero discos más grandes funcionan.
+   - Con 1 TB quedan unos 600 GB libres; con 2 TB hay margen para bajar seguido del almacenamiento frío.
 
    La copia:
    - con `rsync -aH --info=progress2` del NTFS al ext4 del SSD nuevo (la `-H` conserva los enlaces duros);
@@ -315,7 +317,7 @@ La lectura del almacenamiento frío entra desde la fase 1, porque ya hay modelos
 
 ## 12. Preguntas abiertas
 
-1. **SSD para la colección**: ¿de 1 o de 2 TB? ¿NVMe (reemplaza al de 256 GB) o SATA de 2.5" en la bahía? Para esto hay que confirmar el modelo exacto del Tiny (M720q, M920q…): viene en la etiqueta de abajo.
+1. **SSD para la colección**: ¿de 1 o de 2 TB? Para elegir entre SATA de 2.5" y NVMe, revisar si el M920q trae la charola y el cable SATA de la bahía (sección 10, paso 5).
 2. **Disco externo** (se ve después): ¿de qué tamaño es, con qué sistema de archivos y va conectado al mini PC o se conecta solo a veces?
 3. **Formato en frío** para lo nuevo: ¿la carpeta tal cual o un comprimido por modelo? Lo que ya está en Drive son comprimidos.
 4. **Existencias**: ¿se cuentan por miniatura suelta o por kit o escuadra? ¿Qué acabados manejas? ¿Tienes cajas o ubicaciones con nombre?
