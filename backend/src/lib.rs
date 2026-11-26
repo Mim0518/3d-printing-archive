@@ -1,10 +1,15 @@
 //! 3D Printing Archive: servidor (API JSON + frontend compilado).
 
 pub mod auth;
+pub mod catalogo;
 pub mod config;
 pub mod db;
 pub mod error;
+pub mod estructura;
+pub mod frio;
+pub mod inventario;
 pub mod rutas;
+pub mod trabajos;
 
 use std::sync::Arc;
 
@@ -16,13 +21,14 @@ use tower_http::{
     trace::TraceLayer,
 };
 
-use crate::{auth::Intentos, config::Config};
+use crate::{auth::Intentos, config::Config, trabajos::Trabajos};
 
 #[derive(Clone)]
 pub struct AppState {
     pub pool: SqlitePool,
     pub config: Arc<Config>,
     pub intentos: Arc<Intentos>,
+    pub trabajos: Arc<Trabajos>,
 }
 
 impl AppState {
@@ -31,6 +37,7 @@ impl AppState {
             pool,
             config: Arc::new(config),
             intentos: Arc::new(Intentos::default()),
+            trabajos: Arc::new(Trabajos::default()),
         }
     }
 }

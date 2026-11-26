@@ -16,6 +16,8 @@ pub struct Config {
     pub cookie_segura: bool,
     /// Días que dura una sesión.
     pub dias_sesion: i64,
+    /// Carpeta de la colección (biblioteca principal). En el mini PC, `/srv/3dp`.
+    pub biblioteca: Option<PathBuf>,
 }
 
 impl Config {
@@ -41,12 +43,17 @@ impl Config {
             .ok()
             .and_then(|v| v.parse().ok())
             .unwrap_or(30);
+        let biblioteca = env::var("ARCHIVO_BIBLIOTECA")
+            .ok()
+            .filter(|v| !v.is_empty())
+            .map(PathBuf::from);
         Ok(Self {
             direccion,
             base,
             estaticos,
             cookie_segura,
             dias_sesion,
+            biblioteca,
         })
     }
 }

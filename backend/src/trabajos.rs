@@ -1,0 +1,128 @@
+//! Trabajos en segundo plano (por ahora, el escaneo). Su estado queda en la tabla `trabajos`; el progreso de los
+//! que están en curso, en memoria.
+
+use std::{
+    collections::HashMap,
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicU64, Ordering},
+    },
+};
+
+use serde::Serialize;
+use sqlx::SqlitePool;
+
+use crate::{db::ahora, error::ApiError, inventario};
+
+#[derive(Default)]
+pub struct Trabajos {
+    progreso: Mutex<HashMap<i64, Arc<AtomicU64>>>,
+}
+
+impl Trabajos {
+    pub fn progreso(&self, id: i64) -> Option<u64> {
+        self.progreso
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(&id)
+            .map(|a| a.load(Ordering::Relaxed))
+    }
+
+    fn registrar(&self, id: i64) -> Arc<AtomicU64> {
+        let a = Arc::new(AtomicU64::new(0));
+        self.progreso
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(id, a.clone());
+        a
+    }
+
+    fn quitar(&self, id: i64) {
+        self.progreso
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(&id);
+    }
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct Trabajo {
+    pub id: i64,
+    pub tipo: String,
+    pub estado: String,
+    pub detalle: String,
+    pub resultado: String,
+    pub creado: i64,
+    pub terminado: Option<i64>,
+}
+
+/// Al arrancar: lo que quedó «en curso» se interrumpió con el servidor.
+pub async fn marcar_interrumpidos(pool: &SqlitePool) -> anyhow::Result<()> {
+    sqlx::query(
+        "UPDATE trabajos SET estado = 'fallo', detalle = 'se interrumpió (el servidor se reinició)', terminado = ?
+         WHERE estado = 'en_curso'",
+    )
+    .bind(ahora())
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// Arranca el escaneo de una biblioteca en segundo plano. Solo puede haber uno a la vez.
+pub async fn iniciar_escaneo(
+    pool: SqlitePool,
+    trabajos: Arc<Trabajos>,
+    biblioteca_id: i64,
+) -> Result<i64, ApiError> {
+    let corriendo: Option<i64> = sqlx::query_scalar(
+        "SELECT id FROM trabajos WHERE tipo = 'escaneo' AND estado = 'en_curso' LIMIT 1",
+    )
+    .fetch_optional(&pool)
+    .await?;
+    if let Some(id) = corriendo {
+        return Err(ApiError::Conflicto(format!(
+            "ya hay un escaneo en curso (trabajo {id})"
+        )));
+    }
+    let nombre: Option<String> = sqlx::query_scalar("SELECT nombre FROM bibliotecas WHERE id = ?")
+        .bind(biblioteca_id)
+        .fetch_optional(&pool)
+        .await?;
+    let Some(nombre) = nombre else {
+        return Err(ApiError::NoEncontrado);
+    };
+    let id: i64 = sqlx::query_scalar(
+        "INSERT INTO trabajos (tipo, estado, detalle, creado) VALUES ('escaneo', 'en_curso', ?, ?) RETURNING id",
+    )
+    .bind(format!("biblioteca {nombre}"))
+    .bind(ahora())
+    .fetch_one(&pool)
+    .await?;
+    let vistos = trabajos.registrar(id);
+    tokio::spawn(async move {
+        let r = inventario::escanear(&pool, biblioteca_id, vistos).await;
+        let (estado, detalle, resultado) = match r {
+            Ok(res) => (
+                "terminado",
+                format!("biblioteca {nombre}"),
+                serde_json::to_string(&res).unwrap_or_default(),
+            ),
+            Err(e) => {
+                tracing::error!("escaneo {id}: {e:#}");
+                ("fallo", format!("{e:#}"), String::new())
+            }
+        };
+        let _ = sqlx::query(
+            "UPDATE trabajos SET estado = ?, detalle = ?, resultado = ?, terminado = ? WHERE id = ?",
+        )
+        .bind(estado)
+        .bind(detalle)
+        .bind(resultado)
+        .bind(ahora())
+        .bind(id)
+        .execute(&pool)
+        .await;
+        trabajos.quitar(id);
+    });
+    Ok(id)
+}

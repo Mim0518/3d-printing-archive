@@ -19,6 +19,7 @@ fn config(estaticos: Option<PathBuf>) -> Config {
         estaticos,
         cookie_segura: false,
         dias_sesion: 30,
+        biblioteca: None,
     }
 }
 

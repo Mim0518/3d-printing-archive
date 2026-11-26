@@ -51,6 +51,19 @@ async fn migrar(pool: &SqlitePool) -> anyhow::Result<()> {
         .context("no se pudieron aplicar las migraciones")
 }
 
+/// Crea o pone al día la biblioteca principal con la ruta de la configuración.
+pub async fn asegurar_biblioteca_principal(pool: &SqlitePool, ruta: &Path) -> anyhow::Result<i64> {
+    let ruta = ruta.to_string_lossy();
+    let id = sqlx::query_scalar(
+        "INSERT INTO bibliotecas (nombre, ruta, tipo) VALUES ('principal', ?, 'principal')
+         ON CONFLICT (nombre) DO UPDATE SET ruta = excluded.ruta RETURNING id",
+    )
+    .bind(ruta.as_ref())
+    .fetch_one(pool)
+    .await?;
+    Ok(id)
+}
+
 /// Segundos Unix de ahora.
 pub fn ahora() -> i64 {
     SystemTime::now()

@@ -3,11 +3,22 @@
 //!   printing-archive usuario <nombre>  crea el usuario o le cambia la contraseña (la pide en la terminal,
 //!                                      o la lee de la entrada estándar si no es una terminal)
 //!   printing-archive migrar            crea la base o la pone al día y sale
+//!   printing-archive escanear          escanea la biblioteca principal (ARCHIVO_BIBLIOTECA) y liga los archivos
+//!   printing-archive importar catalogo <hoja.csv>
+//!                                      importa la pestaña Catálogo de la hoja de Google (exportada a CSV)
+//!   printing-archive importar frio <frio.csv> [contenido.csv]
+//!                                      importa la lista de lo que está en almacenamiento frío
 
-use std::io::{BufRead, IsTerminal};
+use std::{
+    io::{BufRead, IsTerminal},
+    path::Path,
+    sync::{Arc, atomic::AtomicU64},
+};
 
 use anyhow::{Context, bail};
-use printing_archive::{AppState, app, auth, config::Config, db};
+use printing_archive::{
+    AppState, app, auth, catalogo, config::Config, db, frio, inventario, trabajos,
+};
 use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
@@ -33,14 +44,84 @@ async fn main() -> anyhow::Result<()> {
             println!("Base al día: {}", config.base.display());
             Ok(())
         }
+        Some("escanear") => escanear(config).await,
+        Some("importar") => match (args.get(1).map(String::as_str), args.get(2)) {
+            (Some("catalogo"), Some(csv)) => {
+                let pool = db::abrir(&config.base).await?;
+                biblioteca(&pool, &config).await?;
+                let r = catalogo::importar_catalogo(&pool, Path::new(csv)).await?;
+                println!(
+                    "Catálogo: {} filas ({} nuevas, {} actualizadas), {} etiquetas puestas",
+                    r.filas, r.nuevos, r.actualizados, r.etiquetas
+                );
+                if !r.no_vienen.is_empty() {
+                    println!(
+                        "Modelos que ya estaban y no vienen en el CSV (no se borraron): {}",
+                        r.no_vienen.len()
+                    );
+                    for c in r.no_vienen.iter().take(20) {
+                        println!("  {c}");
+                    }
+                }
+                Ok(())
+            }
+            (Some("frio"), Some(csv)) => {
+                let pool = db::abrir(&config.base).await?;
+                let r = frio::importar(&pool, Path::new(csv), args.get(3).map(Path::new)).await?;
+                println!(
+                    "Frío: {} copias ({} ligadas a un modelo), {} entradas de comprimidos; ubicaciones: {}",
+                    r.copias,
+                    r.ligadas,
+                    r.entradas,
+                    r.ubicaciones.join(", ")
+                );
+                Ok(())
+            }
+            _ => bail!(
+                "uso: importar catalogo <hoja.csv> | importar frio <frio.csv> [contenido.csv]"
+            ),
+        },
         Some(otro) => {
-            bail!("comando desconocido: {otro} (usa: servir | usuario <nombre> | migrar)")
+            bail!(
+                "comando desconocido: {otro} (usa: servir | usuario <nombre> | migrar | escanear | importar …)"
+            )
         }
     }
 }
 
+/// Registra la biblioteca principal si ARCHIVO_BIBLIOTECA está configurada.
+async fn biblioteca(pool: &sqlx::SqlitePool, config: &Config) -> anyhow::Result<Option<i64>> {
+    match &config.biblioteca {
+        Some(r) => Ok(Some(db::asegurar_biblioteca_principal(pool, r).await?)),
+        None => Ok(None),
+    }
+}
+
+async fn escanear(config: Config) -> anyhow::Result<()> {
+    let pool = db::abrir(&config.base).await?;
+    let id = biblioteca(&pool, &config)
+        .await?
+        .context("falta ARCHIVO_BIBLIOTECA (la carpeta de la colección)")?;
+    let r = inventario::escanear(&pool, id, Arc::new(AtomicU64::new(0))).await?;
+    println!(
+        "Escaneo: {} archivos ({} nuevos, {} cambiados, {} iguales), {} faltan, {} errores",
+        r.archivos,
+        r.nuevos,
+        r.cambiados,
+        r.iguales,
+        r.faltan,
+        r.errores.len()
+    );
+    for e in r.errores.iter().take(20) {
+        println!("  {e}");
+    }
+    Ok(())
+}
+
 async fn servir(config: Config) -> anyhow::Result<()> {
     let pool = db::abrir(&config.base).await?;
+    biblioteca(&pool, &config).await?;
+    trabajos::marcar_interrumpidos(&pool).await?;
     let direccion = config.direccion;
     match &config.estaticos {
         Some(d) => tracing::info!("frontend: {}", d.display()),

@@ -1,4 +1,4 @@
-//! Rutas de la API (`/api/v1`).
+//! Salud del servidor e inicio de sesión.
 
 use std::time::Duration;
 
@@ -17,13 +17,12 @@ use crate::{
     error::ApiError,
 };
 
-pub fn api() -> Router<AppState> {
+pub fn rutas() -> Router<AppState> {
     Router::new()
         .route("/salud", get(salud))
         .route("/auth/login", post(login))
         .route("/auth/logout", post(logout))
         .route("/auth/yo", get(yo))
-        .fallback(|| async { ApiError::NoEncontrado })
 }
 
 /// Pública: sirve para saber si el servidor y la base responden.

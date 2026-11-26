@@ -41,7 +41,14 @@ Equipo: Lenovo ThinkCentre M920q, con Ubuntu Server 24.04 LTS en un NVMe de 2 TB
      /opt/printing-archive/printing-archive usuario <tu-usuario>
    ```
    El mismo comando cambia la contraseña y cierra las sesiones abiertas.
-4. Arranca el servicio:
+4. Importa el catálogo y lo que está en almacenamiento frío. Los CSV salen de la hoja de Google (pestaña Catálogo) y de `wargames/scripts/exportar_frio_app.py`:
+   ```bash
+   cd /var/lib/printing-archive
+   sudo -u archivo env $(sudo cat /etc/printing-archive.env | xargs) /opt/printing-archive/printing-archive importar catalogo hoja_catalogo.csv
+   sudo -u archivo env $(sudo cat /etc/printing-archive.env | xargs) /opt/printing-archive/printing-archive importar frio frio.csv contenido.csv
+   ```
+   El inventario del disco se hace desde la app (Inicio → «Escanear ahora») o con el comando `escanear`.
+5. Arranca el servicio:
    ```bash
    sudo systemctl daemon-reload
    sudo systemctl enable --now printing-archive

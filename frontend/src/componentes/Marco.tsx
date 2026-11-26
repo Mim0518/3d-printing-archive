@@ -15,7 +15,7 @@ const SECCIONES = [
   { ruta: '/frio', nombre: 'Almacenamiento frío', fase: 8 },
   { ruta: '/bandeja', nombre: 'Por catalogar', fase: 9 },
 ]
-const FASE_ACTUAL = 0
+const FASE_ACTUAL = 1
 
 export default function Marco() {
   const [abierto, { toggle, close }] = useDisclosure()
@@ -58,7 +58,7 @@ export default function Marco() {
             <NavLink
               key={s.ruta}
               label={s.nombre}
-              active={pathname === s.ruta}
+              active={s.ruta === '/' ? pathname === '/' : pathname.startsWith(s.ruta)}
               disabled={!lista}
               rightSection={lista ? null : <Badge size="xs" variant="light" color="gray">fase {s.fase}</Badge>}
               onClick={() => {

@@ -14,6 +14,7 @@ pub enum ApiError {
     Bloqueado(u64),
     Invalido(String),
     NoEncontrado,
+    Conflicto(String),
     Interno(anyhow::Error),
 }
 
@@ -31,6 +32,7 @@ impl IntoResponse for ApiError {
             ),
             ApiError::Invalido(m) => (StatusCode::BAD_REQUEST, m),
             ApiError::NoEncontrado => (StatusCode::NOT_FOUND, "No existe".to_string()),
+            ApiError::Conflicto(m) => (StatusCode::CONFLICT, m),
             ApiError::Interno(e) => {
                 tracing::error!("error interno: {e:#}");
                 (
