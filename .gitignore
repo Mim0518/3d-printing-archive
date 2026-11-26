@@ -1,0 +1,17 @@
+# Rust
+backend/target/
+
+# Base de datos y archivos locales de desarrollo
+backend/datos/
+*.db
+*.db-wal
+*.db-shm
+.env
+
+# Paquetes generados por deploy/empaquetar.sh
+paquete/
+
+# Editores
+.idea/
+.vscode/
+.DS_Store

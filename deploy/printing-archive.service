@@ -1,0 +1,26 @@
+[Unit]
+Description=Archivo 3D (3d-printing-archive)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=archivo
+Group=archivo
+EnvironmentFile=/etc/printing-archive.env
+WorkingDirectory=/var/lib/printing-archive
+ExecStart=/opt/printing-archive/printing-archive servir
+Restart=on-failure
+RestartSec=5
+
+# Endurecimiento: el servicio solo escribe en su carpeta de datos.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/printing-archive
+# La colección, de solo lectura por ahora. Desde la fase 2 (mudanzas) pasa a ReadWritePaths.
+ReadOnlyPaths=-/srv/3dp
+
+[Install]
+WantedBy=multi-user.target
