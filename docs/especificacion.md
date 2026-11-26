@@ -1,6 +1,6 @@
 # 3D Printing Archive: especificación
 
-Versión 0.2, borrador del 26 de noviembre de 2026. La app se va a construir por fases, y este documento crece con ella. Lo que todavía no está decidido está en la sección 12.
+Versión 0.3, borrador del 26 de noviembre de 2026. La app se va a construir por fases, y este documento crece con ella. Lo que todavía no está decidido está en la sección 12.
 
 ## 1. Objetivo
 
@@ -22,7 +22,7 @@ El motivo principal es el inventario para vender impresiones: hoy es difícil ll
 | Dónde corre | Un mini PC en casa. El desarrollo y las pruebas se hacen en la PC actual |
 | Equipo | Lenovo ThinkCentre M920q Tiny: Intel Core i5 de 8.ª o 9.ª generación con gráficos UHD 630, 16 GB de RAM y SSD NVMe de 256 GB. Admite dos discos: uno M.2 y uno SATA de 2.5" |
 | Sistema | Ubuntu Server 24.04 LTS, en lugar del Windows Pro que trae |
-| Archivos | La colección se muda al mini PC, a un SSD nuevo (sección 10). La PC actual la monta por red para laminar |
+| Archivos | La colección se muda al mini PC, a un NVMe nuevo de 2 TB que reemplaza al de 256 GB (sección 10). La PC actual la monta por red para laminar |
 | Acceso | La red de casa y, desde fuera, Tailscale. Nada queda público en internet. Un solo usuario con contraseña |
 | Catálogo | La app reemplaza la pestaña Catálogo. Se importan las 725 filas con las correcciones del usuario, y la hoja queda como respaldo o exportación |
 | Ventas | Se llevan existencias impresas, pedidos y clientes, y costos y precio. Las licencias de venta quedan fuera por ahora (sección 13) |
@@ -246,7 +246,7 @@ Son tablas de SQLite; las tablas de unión se escriben con `↔`.
   - Ubuntu Server 24.04 LTS en el mini PC, con un servicio de systemd y variables de entorno (rutas de las bibliotecas, nombres de los remotos de rclone y puerto).
   - Se instalan Tailscale, rclone (versión oficial; la de apt es vieja), f3d y Samba.
   - f3d renderiza sin pantalla con EGL sobre la gráfica Intel (Mesa). Si el paquete de apt es viejo, se usa el de su página de versiones.
-  - Si el SSD nuevo es SATA, el de 256 GB lleva el sistema, la app, la base y la caché de miniaturas (unos 1–2 GB), y la colección va en el nuevo con ext4. Si es un NVMe que reemplaza al de 256 GB, todo va en él, con la colección en su propia partición ext4.
+  - Todo va en el NVMe de 2 TB. Ubuntu, la app, la base y la caché de miniaturas (unos 1–2 GB) van en la partición del sistema (unos 100 GB). La colección va en su propia partición ext4 con el resto (por ejemplo `/srv/3dp`).
   - Respaldo diario de la base: `sqlite3 .backup` y copia a Drive.
 - **Capacidad**: el i5 de 6 núcleos y 16 GB de RAM sobran para la API y SQLite. Las 35 mil miniaturas se renderizan una sola vez en segundo plano; se estiman de 3 a 10 horas, y después solo se renderiza lo nuevo.
 - **Estructura del repo**: `backend/` (crate de Rust; se separa en un workspace cuando crezca), `frontend/`, `docs/` (esta especificación y las decisiones) y `deploy/` (unidad de systemd, ejemplo de `.env`, scripts).
@@ -284,11 +284,12 @@ Son las mismas reglas con las que se limpió la colección:
 2. Importar la pestaña Catálogo, exportada con rclone, con las 725 filas y las correcciones del usuario.
 3. Listar Drive con MD5 (`3DP-archivo` y `3DP-cuarentena`) e importarlo como copias en frío.
 4. Importar `3DP/Printers` como impresoras, perfiles y documentos.
-5. Mudar la colección al mini PC. Hoy está en un Seagate IronWolf de 1 TB de 3.5", que no cabe en el M920q, y el SSD de 256 GB del mini PC no alcanza para 326 GB. Por eso se compra un SSD. El M920q admite un M.2 y un SATA de 2.5" (7 mm):
-   - **Opción preferida:** un SSD SATA de 2.5" en la bahía para la colección, y el NVMe de 256 GB se queda con el sistema. Hace falta la charola y el cable SATA de la bahía, que no todas las unidades traen, y la bahía no se puede usar junto con una tarjeta PCIe.
-   - Si no trae charola ni cable: un NVMe M.2 2280 de 1–2 TB en lugar del de 256 GB, con todo en él.
-   - Lenovo lista discos de hasta 1 TB porque es lo que vendía con el equipo, pero discos más grandes funcionan.
-   - Con 1 TB quedan unos 600 GB libres; con 2 TB hay margen para bajar seguido del almacenamiento frío.
+5. Mudar la colección al mini PC. Hoy está en un Seagate IronWolf de 1 TB de 3.5", que no cabe en el M920q, y el SSD de 256 GB del mini PC no alcanza para 326 GB.
+   - **Decidido:** el M920q no trae la charola ni el cable de la bahía de 2.5", así que se compra un **NVMe M.2 2280 de 2 TB** que reemplaza al de 256 GB.
+   - La ranura M.2 del M920q es PCIe 3.0 x4: un disco PCIe 4.0 funciona, pero a velocidad de 3.0, así que no hace falta pagar de más por uno 4.0.
+   - Ubuntu se instala directo en el disco nuevo, sin clonar el Windows que trae.
+   - Con 2 TB quedan unos 1.5 TB libres después de la colección, con margen para traer seguido modelos del almacenamiento frío.
+   - El NVMe de 256 GB que sale puede quedar en una caja USB como respaldo de la base de datos.
 
    La copia:
    - con `rsync -aH --info=progress2` del NTFS al ext4 del SSD nuevo (la `-H` conserva los enlaces duros);
@@ -317,14 +318,13 @@ La lectura del almacenamiento frío entra desde la fase 1, porque ya hay modelos
 
 ## 12. Preguntas abiertas
 
-1. **SSD para la colección**: ¿de 1 o de 2 TB? Para elegir entre SATA de 2.5" y NVMe, revisar si el M920q trae la charola y el cable SATA de la bahía (sección 10, paso 5).
-2. **Disco externo** (se ve después): ¿de qué tamaño es, con qué sistema de archivos y va conectado al mini PC o se conecta solo a veces?
-3. **Formato en frío** para lo nuevo: ¿la carpeta tal cual o un comprimido por modelo? Lo que ya está en Drive son comprimidos.
-4. **Existencias**: ¿se cuentan por miniatura suelta o por kit o escuadra? ¿Qué acabados manejas? ¿Tienes cajas o ubicaciones con nombre?
-5. **Costos**: precio de la luz, tarifa de mano de obra o pintura, margen y porcentaje de fallas que usas hoy.
-6. **Canales de venta**: WhatsApp, Facebook, Mercado Libre… Esto decide los formatos de exportación de las colecciones.
-7. **Placas nuevas**: ¿dónde guardas las escenas y laminados que haces en Lychee o Chitubox? Hace falta una convención para que la app los encuentre.
-8. **Respaldo de la base**: ¿basta una copia diaria en Drive?
+1. **Disco externo** (se ve después): ¿de qué tamaño es, con qué sistema de archivos y va conectado al mini PC o se conecta solo a veces?
+2. **Formato en frío** para lo nuevo: ¿la carpeta tal cual o un comprimido por modelo? Lo que ya está en Drive son comprimidos.
+3. **Existencias**: ¿se cuentan por miniatura suelta o por kit o escuadra? ¿Qué acabados manejas? ¿Tienes cajas o ubicaciones con nombre?
+4. **Costos**: precio de la luz, tarifa de mano de obra o pintura, margen y porcentaje de fallas que usas hoy.
+5. **Canales de venta**: WhatsApp, Facebook, Mercado Libre… Esto decide los formatos de exportación de las colecciones.
+6. **Placas nuevas**: ¿dónde guardas las escenas y laminados que haces en Lychee o Chitubox? Hace falta una convención para que la app los encuentre.
+7. **Respaldo de la base**: ¿basta una copia diaria en Drive?
 
 ## 13. Fuera de alcance por ahora
 
