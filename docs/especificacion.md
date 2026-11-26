@@ -1,6 +1,6 @@
 # 3D Printing Archive: especificación
 
-Versión 0.1, borrador del 26 de noviembre de 2026. La app se va a construir por fases, y este documento crece con ella. Lo que todavía no está decidido está en la sección 12.
+Versión 0.2, borrador del 26 de noviembre de 2026. La app se va a construir por fases, y este documento crece con ella. Lo que todavía no está decidido está en la sección 12.
 
 ## 1. Objetivo
 
@@ -19,8 +19,10 @@ El motivo principal es el inventario para vender impresiones: hoy es difícil ll
 |---|---|
 | Backend | Rust: Axum (API JSON) + Tokio + SQLx sobre SQLite |
 | Frontend | Aplicación aparte con React + Vite + TypeScript. En producción, el mismo binario de Rust sirve los archivos compilados |
-| Dónde corre | Un mini PC en casa, con Linux x86 (Intel/AMD). El desarrollo y las pruebas se hacen en la PC actual |
-| Archivos | La colección se muda al mini PC. La PC actual la monta por red para laminar |
+| Dónde corre | Un mini PC en casa. El desarrollo y las pruebas se hacen en la PC actual |
+| Equipo | Lenovo ThinkCentre Tiny: Intel Core i5 con gráficos UHD 630 (8.ª o 9.ª generación), 16 GB de RAM y SSD de 256 GB |
+| Sistema | Ubuntu Server 24.04 LTS, en lugar del Windows Pro que trae |
+| Archivos | La colección se muda al mini PC, a un SSD nuevo (sección 10). La PC actual la monta por red para laminar |
 | Acceso | La red de casa y, desde fuera, Tailscale. Nada queda público en internet. Un solo usuario con contraseña |
 | Catálogo | La app reemplaza la pestaña Catálogo. Se importan las 725 filas con las correcciones del usuario, y la hoja queda como respaldo o exportación |
 | Ventas | Se llevan existencias impresas, pedidos y clientes, y costos y precio. Las licencias de venta quedan fuera por ahora (sección 13) |
@@ -240,7 +242,13 @@ Son tablas de SQLite; las tablas de unión se escriben con `↔`.
   - Mantine para componentes y formularios (propuesta);
   - un cliente de TypeScript generado del OpenAPI.
 - **Herramientas externas**: f3d (render) y rclone (Drive), llamadas como procesos con tiempo límite. Sus errores se guardan en el registro del trabajo.
-- **Despliegue**: un servicio de systemd en el mini PC, con variables de entorno (rutas de las bibliotecas, nombres de los remotos de rclone y puerto). Respaldo diario de la base: `sqlite3 .backup` y copia a Drive.
+- **Despliegue**:
+  - Ubuntu Server 24.04 LTS en el mini PC, con un servicio de systemd y variables de entorno (rutas de las bibliotecas, nombres de los remotos de rclone y puerto).
+  - Se instalan Tailscale, rclone (versión oficial; la de apt es vieja), f3d y Samba.
+  - f3d renderiza sin pantalla con EGL sobre la gráfica Intel (Mesa). Si el paquete de apt es viejo, se usa el de su página de versiones.
+  - Si el SSD nuevo es SATA, el de 256 GB lleva el sistema, la app, la base y la caché de miniaturas (unos 1–2 GB), y la colección va en el nuevo con ext4. Si es un NVMe que reemplaza al de 256 GB, todo va en él, con la colección en su propia partición ext4.
+  - Respaldo diario de la base: `sqlite3 .backup` y copia a Drive.
+- **Capacidad**: el i5 de 6 núcleos y 16 GB de RAM sobran para la API y SQLite. Las 35 mil miniaturas se renderizan una sola vez en segundo plano; se estiman de 3 a 10 horas, y después solo se renderiza lo nuevo.
 - **Estructura del repo**: `backend/` (crate de Rust; se separa en un workspace cuando crezca), `frontend/`, `docs/` (esta especificación y las decisiones) y `deploy/` (unidad de systemd, ejemplo de `.env`, scripts).
 
 ## 8. API (resumen)
@@ -276,8 +284,12 @@ Son las mismas reglas con las que se limpió la colección:
 2. Importar la pestaña Catálogo, exportada con rclone, con las 725 filas y las correcciones del usuario.
 3. Listar Drive con MD5 (`3DP-archivo` y `3DP-cuarentena`) e importarlo como copias en frío.
 4. Importar `3DP/Printers` como impresoras, perfiles y documentos.
-5. Mudar la colección al mini PC:
-   - con `rsync -aH --info=progress2` (la `-H` conserva los enlaces duros);
+5. Mudar la colección al mini PC. Hoy está en un Seagate IronWolf de 1 TB de 3.5", que no cabe en el ThinkCentre Tiny, y el SSD de 256 GB del mini PC no alcanza para 326 GB. Por eso se compra un SSD:
+   - un NVMe de 1–2 TB en lugar del de 256 GB, o un SSD SATA de 2.5" en la bahía si el modelo la tiene (los M720q y M920q suelen traerla);
+   - con 1 TB quedan unos 600 GB libres; con 2 TB hay margen para bajar seguido del almacenamiento frío.
+
+   La copia:
+   - con `rsync -aH --info=progress2` del NTFS al ext4 del SSD nuevo (la `-H` conserva los enlaces duros);
    - comprobar archivo por archivo (tamaño y hash);
    - después, compartirla por SMB a esta PC para laminar.
 6. Dejar la hoja de Google como respaldo de solo lectura, con una exportación periódica desde la app.
@@ -303,8 +315,8 @@ La lectura del almacenamiento frío entra desde la fase 1, porque ya hay modelos
 
 ## 12. Preguntas abiertas
 
-1. **Mini PC**: ¿qué procesador, cuánta RAM y cuánto disco tiene? ¿Qué sistema de archivos tendrá la colección? Se necesitan unos 330 GB, más el crecimiento y unos 1–2 GB de miniaturas.
-2. **Disco externo**: ¿de qué tamaño es, con qué sistema de archivos y va conectado al mini PC o se conecta solo a veces?
+1. **SSD para la colección**: ¿de 1 o de 2 TB? ¿NVMe (reemplaza al de 256 GB) o SATA de 2.5" en la bahía? Para esto hay que confirmar el modelo exacto del Tiny (M720q, M920q…): viene en la etiqueta de abajo.
+2. **Disco externo** (se ve después): ¿de qué tamaño es, con qué sistema de archivos y va conectado al mini PC o se conecta solo a veces?
 3. **Formato en frío** para lo nuevo: ¿la carpeta tal cual o un comprimido por modelo? Lo que ya está en Drive son comprimidos.
 4. **Existencias**: ¿se cuentan por miniatura suelta o por kit o escuadra? ¿Qué acabados manejas? ¿Tienes cajas o ubicaciones con nombre?
 5. **Costos**: precio de la luz, tarifa de mano de obra o pintura, margen y porcentaje de fallas que usas hoy.
