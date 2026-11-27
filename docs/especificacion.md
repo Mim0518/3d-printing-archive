@@ -1,6 +1,6 @@
 # 3D Printing Archive: especificación
 
-Versión 0.7, borrador del 26 de noviembre de 2026. La app se va a construir por fases, y este documento crece con ella. Lo que todavía no está decidido está en la sección 12.
+Versión 0.8, borrador del 26 de noviembre de 2026. La app se va a construir por fases, y este documento crece con ella. Lo que todavía no está decidido está en la sección 12.
 
 ## 1. Objetivo
 
@@ -136,10 +136,12 @@ El motivo principal es el inventario para vender impresiones: hoy es difícil ll
   - **Cantidad**: miniaturas completas del modelo que salen de la placa. Vacía quiere decir que la placa solo trae partes (un brazo, la mitad de un kit). La fase 6 la usa para sumar existencias al registrar una impresión.
   - Una placa se puede marcar como «no es de ningún modelo» (calibración, pruebas).
   - Pendiente: la sugerencia por geometría. Las escenas guardan la malla en formatos propios (Lychee, Chitubox), así que hace falta leerlos primero.
-- PLA-4. Desde un modelo, ver sus placas listas para imprimir y para qué impresora y material. La impresora sale del laminado; el material llega con la fase 5.
+- PLA-4. Desde un modelo, ver sus placas listas para imprimir y para qué impresora y material.
+  - Hecho en la fase 5: la impresora se reconoce por la pantalla del laminado (su resolución, en cualquier orientación) y el perfil, por la altura de capa y la exposición. El material sale del perfil. Las placas se filtran por impresora.
 - PLA-5. Crear y editar placas a mano (nombre, impresora, material, archivos, piezas y cantidades) y subir archivos de placa nuevos.
   - Hecho: separar archivos de una placa en otra nueva (hecha a mano), pasar archivos de una placa a otra y borrar las hechas a mano (sus archivos vuelven a detectarse solos). La detección no mueve lo que se puso a mano.
-  - Pendiente: subir archivos nuevos, que depende de dónde se guardan (pregunta 6 de la sección 12), e impresora y material (fase 5).
+  - Hecho en la fase 5: elegir a mano la impresora, el perfil y el material de una placa (lo elegido manda sobre lo reconocido; la app revisa que cuadren entre sí).
+  - Pendiente: subir archivos nuevos, que depende de dónde se guardan (pregunta 6 de la sección 12).
 - PLA-6. Marcar placas como probadas, fallidas o favoritas, con notas.
 
 ### 5.6 Almacenamiento frío (Drive y disco externo)
@@ -169,6 +171,27 @@ El motivo principal es el inventario para vender impresiones: hoy es difícil ll
   - en los dos, altura de capa.
   - Cada perfil lleva sus archivos del laminador (`.orca_printer`, `.lyr`…), versiones y notas como «funciona para minis de 32 mm».
 - PRN-4. Importar lo que ya está en `3DP/Printers`.
+
+Hecho en la fase 5:
+- Impresoras con tecnología, marca y modelo, volumen, boquilla (FDM), pantalla y tamaño de pixel (resina), potencia (para la luz de la fase 6), carpeta de documentos y perfil normal. Su ficha lista lo que hay en su carpeta (manuales, mejoras, calibraciones). Una impresora que ya no se usa se marca así; solo se puede borrar si no tiene perfiles.
+- Materiales con marca, nombre, tipo, color y muestra, presentación (ml o g), precio, densidad, diámetro (filamento) y lo que queda (opcional). La lista muestra el precio por ml o por g. No se borra un material que usan perfiles o placas.
+- Perfiles por impresora y material (o «cualquier material») con altura de capa y los campos de su tecnología:
+  - resina: exposición, exposición y capas de base, capas de transición, alzado, velocidades de alzado y bajada, espera con la luz apagada y antialiasing;
+  - FDM: boquilla, temperaturas de boquilla y cama (y de la primera capa), ventilador, velocidad, flujo volumétrico máximo, relación de flujo, pressure advance, retracción, paredes, relleno y patrón.
+  - Si cambian sus valores (material, capa o campos), la versión anterior queda guardada con su fecha y quién la cambió, y la página muestra qué cambió de una a otra. Las notas y el nombre no hacen versión.
+  - Archivos del laminador ligados al perfil (se buscan por su ruta en la colección).
+- Los archivos de perfiles (`.pwsr`, `.lyr`, `.orca_printer`, `.orca_filament`) ahora son del tipo «perfil», ya no escenas.
+- Importación (se revisa antes de importar, no mueve archivos y no repite lo ya importado):
+  - las escenas de Photon Workshop (`.pwscene`) traen la impresora (nombre, pantalla, pixel y volumen) y las resinas propias con sus valores; la activa queda como el perfil normal de la impresora. Si una escena es más vieja que otra de la misma impresora, lo que solo está en ella se ofrece sin marcar;
+  - un `.pwsr` suelto se liga al perfil vigente con la misma capa y exposiciones, aunque se llame distinto; si no hay, se ofrece como perfil nuevo de la impresora de su carpeta;
+  - los paquetes de Orca (`.orca_printer` y las carpetas con `bundle_structure.json`): la impresora sale del perfil de máquina, cada perfil de filamento da un material y un perfil (temperaturas, ventilador, flujo), y el perfil de proceso pone la altura de capa y el relleno. Lo que el perfil hereda de los de Orca no viene en el archivo;
+  - los perfiles de Lychee (`.lyr`) vienen cifrados: se crea el perfil con el archivo ligado y sin valores, para capturarlos a mano;
+  - avisos: precios que parecen en dólares o que son los de fábrica, materiales sin precio, perfiles sin temperaturas y nombres de perfil que no cuadran con la boquilla.
+- La página de impresoras avisa de laminados para pantallas que no son de ninguna impresora de la app (los 44 de 1440×2560 de la Photon original, que vinieron así de los estudios).
+
+Pendiente:
+- Leer los perfiles de Chitubox y PrusaSlicer, y los `.gcode` de la Ender cuando haya.
+- Llevar la cuenta de lo que queda de cada material con cada impresión (fase 6).
 
 ### 5.8 Existencias impresas
 - STK-1. Una existencia es un modelo (o una pieza) con su acabado, su cantidad, su ubicación física y su costo unitario.
@@ -220,7 +243,7 @@ Son tablas de SQLite; las tablas de unión se escriben con `↔`.
   - ↔ `placa_modelos` (modelo_id, estado: sugerido | confirmado | rechazado, origen: carpeta | nombre | manual, cantidad).
   - `datos_placa` (archivo_id, clave, formato, es_placa, vista_previa, máquina, resolución, capa, exposición, capas, alto, tiempo, volumen, peso, número de placas, error): lo que se leyó de cada escena o laminado.
 - `ubicaciones_frio` (id, nombre, tipo: drive | disco_externo, remoto o uuid, ruta base) y `copias` (archivo o paquete, ubicación, ruta, md5, verificado_en, estado). Para los comprimidos, `paquete_contenido` (las entradas de cada uno).
-- `impresoras`, `materiales`, `perfiles` (impresora_id, material_id, parametros JSON, version) ↔ `perfil_archivos`
+- `impresoras` (nombre, tecnología, marca, modelo, volumen, boquilla, pantalla, pixel, potencia, carpeta, perfil normal, en uso, notas, clave de importación), `materiales` (tipo, marca, nombre, subtipo, color, presentación, precio, densidad, diámetro, queda, en uso, notas), `perfiles` (impresora_id, material_id, capa, parametros JSON, version, en uso, notas, origen) ↔ `perfil_archivos`, y `perfil_versiones` (cómo era cada perfil antes de cambiar sus valores). Las placas guardan impresora_id, material_id y perfil_id elegidos a mano.
 - `impresiones` (placa_id, impresora_id, material_id, fecha, resultado, consumo, tiempo_s, pedido_id)
 - `existencias` (modelo_id, archivo_id, acabado, ubicacion_fisica, costo_unitario) y `movimientos_existencia` (existencia_id, delta, motivo, referencia, fecha)
 - `clientes`, `pedidos` (cliente_id, estado, fechas, total, notas), `pedido_piezas` (modelo, existencia o colección; cantidad, acabado, precio), `pagos`
@@ -281,7 +304,8 @@ Son tablas de SQLite; las tablas de unión se escriben con `↔`.
 - `etiquetas`, `mudanzas` (plan, ejecutar, deshacer), `bandeja`
 - `placas` (lista con filtros; crear a mano), `placas/resumen`, `placas/detectar`, `placas/confirmar`, `placas/{id}` (ficha, editar, borrar), `placas/{id}/portada`, `placas/{id}/archivos`, `placas/{id}/modelos/{modelo_id}`
 - `frio/ubicaciones`, `frio/transferencias`
-- `impresoras`, `materiales`, `perfiles`, `impresiones`
+- `impresoras`, `impresoras/{id}`, `materiales`, `materiales/{id}`, `perfiles` (filtra por impresora o material), `perfiles/campos`, `perfiles/{id}`, `perfiles/{id}/archivos`, `archivos/buscar`, `taller/resumen`, `taller/importar` (ver y ejecutar)
+- `impresiones`
 - `existencias`, `existencias/movimientos`
 - `clientes`, `pedidos`, `pagos`
 - `colecciones`, `colecciones/{id}/exportar`
@@ -321,7 +345,7 @@ Son las mismas reglas con las que se limpió la colección:
 
 Cada fase termina con algo que se puede usar y se prueba primero en esta PC.
 
-**Avance:** fases 0 a 4 terminadas (26 de noviembre de 2026). La 0 y la 1 se probaron con la colección real; las mudanzas de la 2, en colecciones de prueba (mover y deshacer dejan todo idéntico), porque en la colección real no hay nada pendiente de mover. Las miniaturas de la 3 se generaron para los 66 modelos de Necrons (999 archivos en 2 min 46 s, sin fallas, 33 MB de caché); el visor 3D falta verlo en un navegador con WebGL.
+**Avance:** fases 0 a 5 terminadas (26 de noviembre de 2026). La 0 y la 1 se probaron con la colección real; las mudanzas de la 2, en colecciones de prueba (mover y deshacer dejan todo idéntico), porque en la colección real no hay nada pendiente de mover. Las miniaturas de la 3 se generaron para los 66 modelos de Necrons (999 archivos en 2 min 46 s, sin fallas, 33 MB de caché); el visor 3D falta verlo en un navegador con WebGL.
 
 Fase 4 con la colección real:
 - 1,096 placas detectadas a partir de 1,212 archivos: 1,028 escenas, 47 laminados y 137 autoguardados.
@@ -331,6 +355,14 @@ Fase 4 con la colección real:
 - Un 3MF de los Grey Knights (`GK_MKX_STRIKE_ARMS_HANDS_FORCESWORD_STYLISH_SB_repaired.3mf`) está dañado: no es un zip válido.
 - Falta que el usuario confirme las sugerencias, con el botón que confirma todas las que vienen de la carpeta o placa por placa.
 - No se detectan los laminados que la limpieza mandó a `3DP-cuarentena` en Drive. Se pueden ligar cuando llegue la fase 8.
+
+Fase 5 con la colección real (probada en una copia de la base):
+- La importación encontró 3 impresoras, 7 materiales y 9 perfiles en 2 escenas de Photon Workshop (más 2 de un modelo), 1 `.pwsr`, 4 paquetes de Orca y su carpeta desempacada, y 1 perfil de Lychee. Se importaron 3 impresoras, 7 materiales y 8 perfiles con 17 archivos ligados. El noveno es un «Calibrado» de la Mono 4 que solo está en escenas más viejas y no se marca solo.
+- Photon Mono 4 (9024×5120): perfiles Anycubic Standard, Anycubic Water Wash y Sunlu Standard (el normal) a 0.03 mm. Photon Mono (1620×2560): «Calibrado» a 0.03 mm, 2 s, y el de Lychee. Ender-3 V3 KE: Creality Generic PLA, ML PLA Básico y PETG Barato a 0.2 mm.
+- Los cuatro paquetes de Orca de la Ender se llaman «0.4» pero su boquilla es de 0.6 mm; la app lo avisa.
+- Precios por revisar: la Water Wash de Anycubic ($23.99) y el ML PLA Básico ($20 por kg) parecen en dólares; el PETG Barato no trae precio.
+- La Mono 4 reconoce sus 3 laminados de prueba (`Printers/SLA/Photon Mono 4`). Ninguno coincide con un perfil: son pruebas de 1.5 a 3.2 s.
+- Falta que el usuario haga la importación en su base y revise los precios.
 
 | Fase | Qué incluye | Terminada cuando |
 |---|---|---|

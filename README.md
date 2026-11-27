@@ -13,12 +13,12 @@ Tecnología:
 - Backend: Rust (Axum + SQLite). Frontend: React + Vite + TypeScript (Mantine).
 - Corre en un mini PC en casa; desde fuera se entra por Tailscale.
 
-Estado: **fase 4**. Placas y escenas:
-- se detectan solas (escena, laminados y autoguardados de Lychee);
-- se leen los datos de los laminados (Chitubox y Photon Workshop) y las vistas previas que traen dentro;
-- cada placa se liga a sus modelos: la app lo sugiere y tú confirmas.
+Estado: **fase 5**. Impresoras, materiales y perfiles:
+- impresoras (resina y FDM), materiales (resinas y filamentos, con precio y densidad) y perfiles de impresión con su historial de versiones y sus archivos del laminador;
+- se importan de los archivos de la colección: escenas y perfiles de Photon Workshop, paquetes de Orca y perfiles de Lychee;
+- cada placa sabe para qué impresora es (por la pantalla de su laminado) y con qué perfil y material se imprime.
 
-Fases anteriores: miniaturas con f3d, portadas y visor 3D; catálogo editable con etiquetas, historial y mudanzas con deshacer. Ver la [especificación](docs/especificacion.md) y la [guía de instalación](deploy/README.md).
+Fases anteriores: placas y escenas ligadas a sus modelos; miniaturas con f3d, portadas y visor 3D; catálogo editable con etiquetas, historial y mudanzas con deshacer. Ver la [especificación](docs/especificacion.md) y la [guía de instalación](deploy/README.md).
 
 ## Desarrollo
 
