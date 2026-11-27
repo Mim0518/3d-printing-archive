@@ -13,12 +13,13 @@ Tecnología:
 - Backend: Rust (Axum + SQLite). Frontend: React + Vite + TypeScript (Mantine).
 - Corre en un mini PC en casa; desde fuera se entra por Tailscale.
 
-Estado: **fase 6**. Existencias y costos:
-- se registra cada impresión de una placa (impresora, perfil, material, consumo, tiempo y cómo salió) con lo que costó: material, luz, limpieza y fallas;
-- las miniaturas que salen bien entran a las existencias, por modelo, acabado (sin pintar, con imprimación o pintada) y lugar; la cantidad es la suma de sus movimientos (impresiones, mermas, ajustes, cambios de acabado o de lugar);
-- precio sugerido por miniatura según el costo, el acabado, el margen y el empaque.
+Estado: **fase 7**. Ventas:
+- clientes, pedidos (cotizado → confirmado → imprimiendo → listo → entregado, o cancelado) con pagos (anticipo y saldo), descuento y envío;
+- las piezas de un pedido se apartan de las existencias o se imprimen para él (lo que sale se aparta solo); cancelar o quitar una pieza las regresa;
+- colecciones de venta con fotos, precio (la suma o uno fijo) y si alcanzan las existencias; se mandan como PDF (hoja para imprimir) o imagen para WhatsApp, y se convierten en pedido;
+- resumen de lo vendido, la ganancia, lo que falta cobrar y lo más vendido.
 
-Fases anteriores: impresoras, materiales y perfiles importados de Photon Workshop, Orca y Lychee; placas y escenas ligadas a sus modelos; miniaturas con f3d, portadas y visor 3D; catálogo editable con etiquetas, historial y mudanzas con deshacer. Ver la [especificación](docs/especificacion.md) y la [guía de instalación](deploy/README.md).
+Fases anteriores: existencias y costos de impresión con precio sugerido; impresoras, materiales y perfiles importados de Photon Workshop, Orca y Lychee; placas y escenas ligadas a sus modelos; miniaturas con f3d, portadas y visor 3D; catálogo editable con etiquetas, historial y mudanzas con deshacer. Ver la [especificación](docs/especificacion.md) y la [guía de instalación](deploy/README.md).
 
 ## Desarrollo
 

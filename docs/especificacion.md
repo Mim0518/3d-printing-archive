@@ -1,6 +1,6 @@
 # 3D Printing Archive: especificación
 
-Versión 0.9, borrador del 26 de noviembre de 2026. La app se va a construir por fases, y este documento crece con ella. Lo que todavía no está decidido está en la sección 12.
+Versión 1.0, borrador del 26 de noviembre de 2026. La app se va a construir por fases, y este documento crece con ella. Lo que todavía no está decidido está en la sección 12.
 
 ## 1. Objetivo
 
@@ -117,7 +117,7 @@ El motivo principal es el inventario para vender impresiones: hoy es difícil ll
 ### 5.5 Placas y escenas
 - PLA-1. Detectar escenas (`.lys`, `.chitubox`, `.lyt`, `.scene`, `.pwscene`, `.3mf`) y laminados (`.photon`, `.pm4n`, `.pws`, `.ctb`, `.gcode`) y agruparlos en placas. Una placa reúne la escena y sus laminados para cada impresora. Reglas (fase 4):
   - una placa junta, en la misma carpeta, la escena y los laminados que se llaman igual sin la extensión (`Torso.lys` y `Torso.photon`);
-  - los autoguardados de Lychee (`<Nombre>_autosave/<Nombre>_<fecha>.lyt`) van con `<Nombre>.lys` de la carpeta de arriba, aunque la escena se haya renombrado; si no hay escena, la placa se llama como la carpeta;
+  - los `.lyt` de Lychee (sobre todo los autoguardados de `<Nombre>_autosave/`) se ignoran desde la fase 7, a pedido del usuario: no son placas, no se ligan como autoguardados y no llevan vista previa. Siguen en el inventario (tipo «otro») para que las mudanzas los muevan con su modelo. Al aplicarlo se quitaron 46 placas que solo tenían autoguardados (de 1,096 quedaron 1,050);
   - un 3MF es placa solo si es un proyecto de laminador (trae la configuración o las placas de Orca, Bambu, Prusa o Cura en `Metadata/`); un proyecto con varias placas cuenta como una, con su número de placas;
   - `.pwsr` es un perfil de resina de Photon Workshop, no una escena: va con los perfiles (fase 5);
   - la detección corre sola al final de cada escaneo y de cada mudanza, y se puede lanzar a mano. Solo vuelve a leer los archivos que cambiaron.
@@ -237,10 +237,28 @@ Hecho en la fase 6:
 - ORD-3. Las piezas por imprimir sugieren las placas que las contienen y, al imprimirse, quedan ligadas al pedido.
 - ORD-4. Historial: qué se vendió, a quién, a qué precio y con qué ganancia; lo más vendido por modelo y por facción.
 
+Hecho en la fase 7:
+- Clientes con nombre, WhatsApp, teléfono, correo, redes y notas; su ficha lista sus pedidos y lo que ha comprado. Uno con pedidos no se borra.
+- Pedidos con piezas (modelo, acabado, cantidad y precio por miniatura; sin precio toma el de venta de la existencia o el sugerido), descuento, envío, fecha de entrega y notas. Los estados se cambian a mano; entregarlo con miniaturas sin apartar pide confirmación, y uno entregado ya no se cancela ni cambia sus piezas.
+- Apartar: una pieza se surte de las existencias del mismo modelo (las del mismo acabado primero, o de la que se elija). Cada apartado es un movimiento de salida ligado a la pieza con el costo promedio de ese momento; desapartar, quitar la pieza o cancelar el pedido lo regresa.
+- Por imprimir: la pieza enlaza a las placas confirmadas del modelo. Al registrar una impresión desde la placa se puede elegir el pedido (la app lista los abiertos a los que les faltan esos modelos): lo que sale con el mismo acabado se aparta solo.
+- Pagos (efectivo, transferencia, tarjeta u otro; en negativo si es devolución), con total, pagado y saldo.
+- Ganancia de un pedido = precio − descuento − costo de lo apartado (cuando ya está todo apartado). El envío no cuenta.
+- Una impresión sin ningún costo conocido ya no entra con costo $0 (bajaba el promedio): queda sin costo.
+- Resumen (30 días, 90 días, un año o todo): vendido, ganancia, por cobrar, pedidos abiertos y atrasados, lo más vendido (con aviso si ya no hay impresas) y por facción.
+- Pendiente: devoluciones de un pedido entregado (hoy se hace con un ajuste de existencias y un pago en negativo).
+
 ### 5.11 Colecciones para venta
 - COL-1. Una colección de venta tiene nombre, descripción, modelos con cantidad y acabado, fotos (renders, foto del estudio o fotos propias de la miniatura pintada), precio (la suma o uno fijo) y estado (borrador, activa o archivada).
 - COL-2. Exportar una colección a PDF o imagen para mandarla por WhatsApp o redes. Como la app no es pública, se comparte el archivo, no un enlace.
 - COL-3. Desde una colección, ver si alcanzan las existencias o qué falta imprimir, y convertirla en pedido.
+
+Hecho en la fase 7:
+- Colecciones con nombre, descripción, estado (borrador, activa o archivada) y precio fijo opcional (si no, la suma). Cada modelo lleva acabado, cantidad, precio a mano opcional (si no, el de venta o el sugerido), nota, orden y foto.
+- La foto se elige entre las imágenes, renders y mallas del modelo con miniatura (si no, su portada). Para usar fotos propias de la miniatura pintada se ponen en la carpeta del modelo y se escanea: no hay subida de fotos.
+- Muestra el costo, la ganancia, cuántas hay de cada modelo con su acabado y qué falta imprimir.
+- Exportar: una hoja tamaño carta que el navegador imprime o guarda como PDF, y una imagen PNG de 1080 px de ancho dibujada en el navegador; en el celular se comparte directo (WhatsApp y demás) y en la PC se descarga. Como la app no es pública, se comparte el archivo.
+- Convertir en pedido (una o varias veces la colección, con cliente existente o nuevo): crea un pedido cotizado con sus piezas; con precio fijo, los precios se ajustan para que el total sea ese.
 
 ### 5.12 Cuenta y acceso
 - ACC-1. Un usuario con contraseña (argon2) y sesión con cookie segura. La app escucha solo en la red de casa y en la interfaz de Tailscale.
@@ -263,8 +281,8 @@ Son tablas de SQLite; las tablas de unión se escriben con `↔`.
 - `impresoras` (nombre, tecnología, marca, modelo, volumen, boquilla, pantalla, pixel, potencia, carpeta, perfil normal, en uso, notas, clave de importación), `materiales` (tipo, marca, nombre, subtipo, color, presentación, precio, densidad, diámetro, queda, en uso, notas), `perfiles` (impresora_id, material_id, capa, parametros JSON, version, en uso, notas, origen) ↔ `perfil_archivos`, y `perfil_versiones` (cómo era cada perfil antes de cambiar sus valores). Las placas guardan impresora_id, material_id y perfil_id elegidos a mano.
 - `impresiones` (placa_id, impresora_id, material_id, perfil_id y su versión, fecha, resultado: bien | parcial | fallida, consumo y unidad, de dónde salió el consumo, tiempo, costo de material, luz, limpieza y fallas, total, miniaturas buenas, material descontado, notas). En la fase 7 se agrega pedido_id.
 - `existencias` (modelo_id, acabado, ubicación, precio a mano, mínimo, notas; una por modelo, acabado y lugar) y `movimientos` (existencia_id, delta, motivo: impresion | venta | merma | ajuste | acabado | traslado, costo unitario de las entradas, impresion_id, par_id, notas, usuario, fecha)
-- `clientes`, `pedidos` (cliente_id, estado, fechas, total, notas), `pedido_piezas` (modelo, existencia o colección; cantidad, acabado, precio), `pagos`
-- `colecciones_venta` ↔ `coleccion_modelos` (modelo_id, cantidad, acabado, nota), con sus fotos
+- `clientes` (nombre, whatsapp, teléfono, correo, redes, notas), `pedidos` (cliente_id, estado, coleccion_id, descuento, envío, fecha de entrega, entregado, notas), `pedido_piezas` (modelo, acabado, cantidad, precio, notas; lo apartado son movimientos con `pedido_pieza_id`), `pagos` (monto, fecha, forma, notas). Las impresiones guardan `pedido_id`.
+- `colecciones` (nombre, descripción, estado, precio fijo) ↔ `coleccion_modelos` (modelo, acabado, cantidad, precio a mano, foto_id, nota, orden)
 - `ajustes` (clave y valor: precio del kWh, limpieza de resina y de FDM, fallas, mano de obra, imprimación, pintura, horas de pintura, empaque, margen y moneda)
 - `trabajos` (tipo: escaneo | miniaturas | transferencia | mudanza; estado, progreso, registro) y `registro_archivos` (lote, acción, origen, destino, inode, resultado). Este último sirve para deshacer.
 
@@ -324,8 +342,8 @@ Son tablas de SQLite; las tablas de unión se escriben con `↔`.
 - `impresoras`, `impresoras/{id}`, `materiales`, `materiales/{id}`, `perfiles` (filtra por impresora o material), `perfiles/campos`, `perfiles/{id}`, `perfiles/{id}/archivos`, `archivos/buscar`, `taller/resumen`, `taller/importar` (ver y ejecutar)
 - `impresiones` (historial con filtros; registrar), `impresiones/calcular`, `impresiones/{id}` (ver, deshacer), `placas/{id}/impresion` (lo que se propone y cuánto costaría)
 - `existencias` (lista con filtros; agregar a mano), `existencias/resumen`, `existencias/{id}` (ficha, precio, mínimo), `existencias/{id}/movimientos` (merma, ajuste), `existencias/{id}/mover` (acabado o lugar), `modelos/{id}/existencias`, `ajustes/costos`
-- `clientes`, `pedidos`, `pagos`
-- `colecciones`, `colecciones/{id}/exportar`
+- `clientes`, `clientes/{id}`; `pedidos` (lista con filtros; crear), `pedidos/{id}`, `pedidos/{id}/piezas`, `pedidos/{id}/piezas/{pieza}` (`/apartar`, `/desapartar`), `pedidos/{id}/pagos`, `pagos/{id}`; `ventas/resumen`
+- `colecciones`, `colecciones/{id}`, `colecciones/{id}/modelos`, `colecciones/{id}/modelos/{linea}`, `colecciones/{id}/pedido`, `modelos/{id}/fotos`. La exportación a PDF e imagen se hace en el navegador.
 - `exportar/catalogo.csv`
 
 ## 9. Reglas de seguridad de los datos
@@ -362,7 +380,7 @@ Son las mismas reglas con las que se limpió la colección:
 
 Cada fase termina con algo que se puede usar y se prueba primero en esta PC.
 
-**Avance:** fases 0 a 6 terminadas (26 de noviembre de 2026). La 0 y la 1 se probaron con la colección real; las mudanzas de la 2, en colecciones de prueba (mover y deshacer dejan todo idéntico), porque en la colección real no hay nada pendiente de mover. Las miniaturas de la 3 se generaron para los 66 modelos de Necrons (999 archivos en 2 min 46 s, sin fallas, 33 MB de caché); el visor 3D falta verlo en un navegador con WebGL.
+**Avance:** fases 0 a 7 terminadas (26 de noviembre de 2026). La 0 y la 1 se probaron con la colección real; las mudanzas de la 2, en colecciones de prueba (mover y deshacer dejan todo idéntico), porque en la colección real no hay nada pendiente de mover. Las miniaturas de la 3 se generaron para los 66 modelos de Necrons (999 archivos en 2 min 46 s, sin fallas, 33 MB de caché); el visor 3D falta verlo en un navegador con WebGL.
 
 Fase 4 con la colección real:
 - 1,096 placas detectadas a partir de 1,212 archivos: 1,028 escenas, 47 laminados y 137 autoguardados.
@@ -387,6 +405,12 @@ Fase 6 (probada en una copia de la base, con los perfiles importados y costos de
 - La placa quedó como probada, y la siguiente vez propone la misma impresora, perfil, material, consumo y tiempo.
 - Tu base de desarrollo tiene las tablas nuevas pero ninguna impresión, existencia ni ajuste de costos: los valores de la prueba eran inventados.
 
+Fase 7 (probada en una copia de la base, con costos y existencias de prueba):
+- La colección «Necrones: corte real» (el Silent King pintado y 3 Ghost Ark sin pintar) salió en $1,885: $1,153 del Silent King ((250 + 3 + 10 + 1.5 h × 80) × 3 + 4) y 3 × $244 de los Ghost Ark. Cuesta $490.
+- La hoja para PDF y la imagen de 1080 × 1036 px se generaron bien con sus fotos.
+- Convertida en pedido, se apartaron los 2 Ghost Ark de la Caja 2 y el Silent King de la vitrina; falta 1 Ghost Ark por imprimir.
+- Con la colección real, ignorar los `.lyt` dejó 1,050 placas (se quitaron 46 de solo autoguardados) y ningún `.lyt` ligado a una placa.
+
 | Fase | Qué incluye | Terminada cuando |
 |---|---|---|
 | 0. Base | Repo, Axum + SQLite + migraciones, React + Vite, login, CI (cargo test, clippy, build del frontend), unidad de systemd, Tailscale | Se entra con contraseña desde el celular por Tailscale y se ve la página de inicio |
@@ -408,7 +432,7 @@ La lectura del almacenamiento frío entra desde la fase 1, porque ya hay modelos
 2. **Formato en frío** para lo nuevo: ¿la carpeta tal cual o un comprimido por modelo? Lo que ya está en Drive son comprimidos.
 3. **Existencias** (la fase 6 ya permite lo más común; confirmar): se cuentan en unidades del modelo (si un modelo es una escuadra, escuadras), con tres acabados (sin pintar, con imprimación, pintada) y lugares de texto libre. ¿Hace falta contar piezas sueltas o más acabados?
 4. **Costos**: se capturan en Existencias → Costos (luz, limpieza, fallas, mano de obra, pintura, empaque y margen). Falta que pongas los tuyos.
-5. **Canales de venta**: WhatsApp, Facebook, Mercado Libre… Esto decide los formatos de exportación de las colecciones.
+5. **Canales de venta**: la fase 7 exporta a PDF e imagen PNG (WhatsApp y redes). ¿Hace falta otro formato, por ejemplo para publicar en Mercado Libre?
 6. **Placas nuevas**: ¿dónde guardas las escenas y laminados que haces en Lychee o Chitubox? Hace falta una convención para que la app los encuentre. Hoy están junto a los modelos (las Battle Sisters, el Daemon Prince, el Judiciar…) y la app las detecta ahí; la convención decide además dónde se guardan las que se suban desde la app.
 7. **Respaldo de la base**: ¿basta una copia diaria en Drive?
 
