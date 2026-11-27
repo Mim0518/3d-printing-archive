@@ -5,13 +5,17 @@ import { Navigate, Route, Routes, useLocation } from 'react-router'
 import Marco from './componentes/Marco'
 import Catalogo from './paginas/Catalogo'
 import Etiquetas from './paginas/Etiquetas'
+import Importar from './paginas/Importar'
+import Impresora from './paginas/Impresora'
 import Inicio from './paginas/Inicio'
 import Login from './paginas/Login'
 import Modelo from './paginas/Modelo'
 import Mudanza from './paginas/Mudanza'
 import Mudanzas from './paginas/Mudanzas'
+import Perfil from './paginas/Perfil'
 import Placa from './paginas/Placa'
 import Placas from './paginas/Placas'
+import Taller from './paginas/Taller'
 import { useYo } from './sesion'
 
 function ConSesion({ children }: { children: ReactNode }) {
@@ -47,6 +51,10 @@ export default function App() {
         <Route path="mudanzas/:id" element={<Mudanza />} />
         <Route path="placas" element={<Placas />} />
         <Route path="placas/:id" element={<Placa />} />
+        <Route path="impresoras" element={<Taller />} />
+        <Route path="impresoras/importar" element={<Importar />} />
+        <Route path="impresoras/:id" element={<Impresora />} />
+        <Route path="perfiles/:id" element={<Perfil />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

@@ -21,12 +21,12 @@ import { useSearchParams } from 'react-router'
 import { api } from '../api'
 import TarjetaPlaca from '../componentes/TarjetaPlaca'
 import { n, titulo } from '../formato'
-import { useOpciones } from '../opciones'
+import { useOpciones, useTaller } from '../opciones'
 import { useTrabajo } from '../trabajo'
 import type { Ficha, ListaPlacas, ResumenPlacas } from '../tipos'
 
 const POR_PAGINA = 48
-const CLAVES = ['q', 'revision', 'estado', 'juego', 'favorita', 'laminado', 'modelo_id', 'orden', 'pagina'] as const
+const CLAVES = ['q', 'revision', 'estado', 'juego', 'impresora_id', 'favorita', 'laminado', 'modelo_id', 'orden', 'pagina'] as const
 
 /** Resumen, confirmación de lo que viene de la carpeta y nueva detección. */
 function Encabezado() {
@@ -126,6 +126,7 @@ export default function Placas() {
   const [texto, setTexto] = useState(params.get('q') ?? '')
   const [buscado] = useDebouncedValue(texto, 300)
   const { filtros } = useOpciones()
+  const { impresoras } = useTaller()
 
   const poner = (cambios: Partial<Record<(typeof CLAVES)[number], string | null>>) => {
     const p = new URLSearchParams(params)
@@ -204,6 +205,16 @@ export default function Placas() {
           onChange={(v) => poner({ juego: v })}
           miw={150}
         />
+        {impresoras.length > 0 && (
+          <Select
+            placeholder="Impresora"
+            clearable
+            data={impresoras.map((i) => ({ value: String(i.id), label: i.nombre }))}
+            value={params.get('impresora_id')}
+            onChange={(v) => poner({ impresora_id: v })}
+            miw={170}
+          />
+        )}
         <Select
           placeholder="Mostrar"
           clearable

@@ -78,9 +78,25 @@ export default function TarjetaPlaca({ placa: p, sinModelos = false }: { placa: 
             </Badge>
           )}
         </Group>
-        {lam && (lam.tiempo_s || lam.volumen_ml || maquina(lam)) && (
+        {(p.impresoras.length > 0 || p.material) && (
+          <Group gap={4}>
+            {p.impresoras.map((i) => (
+              <Tooltip key={i.id} label={i.por === 'elegida' ? 'Elegida a mano' : 'Por su laminado'}>
+                <Badge size="xs" variant="dot" color={i.por === 'elegida' ? 'blue' : 'teal'}>
+                  {i.nombre.replace(/^(Anycubic|Creality|Elegoo|Prusa|Bambu Lab) /i, '')}
+                </Badge>
+              </Tooltip>
+            ))}
+            {p.material && (
+              <Badge size="xs" variant="outline" color="grape">
+                {p.material.nombre}
+              </Badge>
+            )}
+          </Group>
+        )}
+        {lam && (lam.tiempo_s || lam.volumen_ml || (!lam.impresora && maquina(lam))) && (
           <Text size="xs" c="dimmed">
-            {[maquina(lam), duracion(lam.tiempo_s), lam.volumen_ml ? `${corto(lam.volumen_ml)} ml` : '']
+            {[lam.impresora ? '' : maquina(lam), duracion(lam.tiempo_s), lam.volumen_ml ? `${corto(lam.volumen_ml)} ml` : '']
               .filter(Boolean)
               .join(' · ')}
           </Text>

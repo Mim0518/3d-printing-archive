@@ -46,6 +46,7 @@ export const COLOR_TIPO: Record<string, string> = {
   comprimido: 'orange',
   documento: 'gray',
   video: 'grape',
+  perfil: 'lime',
   otro: 'dark',
 }
 
@@ -69,4 +70,55 @@ export function maquina(d: { maquina: string | null; res_x: number | null; res_y
 export function corto(x: number | null | undefined, decimales = 1): string {
   if (x == null) return ''
   return x < 1 ? String(Number(x.toFixed(3))) : String(Number(x.toFixed(decimales)))
+}
+
+const pesos = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 2 })
+const centavos = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 3 })
+
+/** 437 → «$437.00»; con `fino`, 0.437 → «$0.437». */
+export function dinero(x: number | null | undefined, fino = false): string {
+  if (x == null) return ''
+  return (fino ? centavos : pesos).format(x)
+}
+
+/** «2.2 s · base 19.8 s ×5» o «220 °C · cama 55 °C»: lo principal de un perfil. */
+export function resumenPerfil(p: { capa_mm: number | null; parametros: Record<string, number | string> }): string {
+  const x = p.parametros
+  const num = (k: string) => (typeof x[k] === 'number' ? (x[k] as number) : null)
+  const exp = num('exposicion_s')
+  const base = num('exposicion_base_s')
+  const boq = num('temp_boquilla_c')
+  const cama = num('temp_cama_c')
+  return [
+    p.capa_mm ? `capa ${corto(p.capa_mm)} mm` : '',
+    exp ? `${corto(exp, 3)} s` : '',
+    base ? `base ${corto(base)} s${num('capas_base') ? ` ×${num('capas_base')}` : ''}` : '',
+    boq ? `${boq} °C` : '',
+    cama ? `cama ${cama} °C` : '',
+    num('relleno_pct') != null ? `relleno ${num('relleno_pct')}%` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ')
+}
+
+/** «resina · 9024×5120 · 153.4×87×165 mm». */
+export function resumenImpresora(i: {
+  tecnologia: string
+  res_x: number | null
+  res_y: number | null
+  boquilla_mm: number | null
+  volumen_x_mm: number | null
+  volumen_y_mm: number | null
+  volumen_z_mm: number | null
+}): string {
+  return [
+    i.tecnologia === 'fdm' ? 'FDM' : 'Resina',
+    i.res_x && i.res_y ? `pantalla de ${i.res_x}×${i.res_y}` : '',
+    i.boquilla_mm ? `boquilla de ${corto(i.boquilla_mm)} mm` : '',
+    i.volumen_x_mm && i.volumen_y_mm && i.volumen_z_mm
+      ? `${corto(i.volumen_x_mm)}×${corto(i.volumen_y_mm)}×${corto(i.volumen_z_mm)} mm`
+      : '',
+  ]
+    .filter(Boolean)
+    .join(' · ')
 }

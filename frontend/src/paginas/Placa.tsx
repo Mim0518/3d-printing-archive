@@ -32,7 +32,7 @@ import { Link, useNavigate, useParams } from 'react-router'
 import { api } from '../api'
 import Miniatura from '../componentes/Miniatura'
 import { COLOR_TIPO, corto, cuando, duracion, maquina, tamano, titulo } from '../formato'
-import { ESTADO_PLACA } from '../opciones'
+import { ESTADO_PLACA, nombreMaterial, useRefrescarTaller, useTaller } from '../opciones'
 import type { ArchivoDePlaca, DatosArchivoPlaca, ListaModelos, ModeloDePlaca, PlacaFicha } from '../tipos'
 
 /** Una línea con lo que se leyó de un laminado. */
@@ -67,6 +67,144 @@ function useRefrescar(id: string | undefined) {
     void qc.invalidateQueries({ queryKey: ['placas-resumen'] })
     void qc.invalidateQueries({ queryKey: ['placas-modelo'] })
   }
+}
+
+/** Con qué impresora, perfil y material se imprime: lo elegido a mano y lo que se reconoce de sus laminados. */
+function ConQue({ p }: { p: PlacaFicha }) {
+  const { impresoras, materiales, perfiles } = useTaller()
+  const refrescarPlaca = useRefrescar(String(p.id))
+  const refrescarTaller = useRefrescarTaller()
+  const inicial = () => ({
+    impresora: p.impresora_id ? String(p.impresora_id) : null,
+    perfil: p.perfil_id ? String(p.perfil_id) : null,
+    material: p.material_id ? String(p.material_id) : null,
+  })
+  const [f, setF] = useState(inicial)
+  const cambio =
+    f.impresora !== (p.impresora_id ? String(p.impresora_id) : null) ||
+    f.perfil !== (p.perfil_id ? String(p.perfil_id) : null) ||
+    f.material !== (p.material_id ? String(p.material_id) : null)
+  const guardar = useMutation({
+    mutationFn: () =>
+      api(`/placas/${p.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          impresora_id: f.impresora ? Number(f.impresora) : null,
+          perfil_id: f.perfil ? Number(f.perfil) : null,
+          material_id: f.material ? Number(f.material) : null,
+        }),
+      }),
+    onSuccess: () => {
+      refrescarPlaca()
+      refrescarTaller()
+    },
+  })
+  // lo que dicen sus laminados, aunque se haya elegido a mano la misma impresora
+  const reconocidas = p.archivos
+    .map((a) => (a.rol === 'laminado' ? a.datos?.impresora : null))
+    .filter((i, k, todas): i is { id: number; nombre: string } => !!i && todas.findIndex((x) => x?.id === i.id) === k)
+  const perfilesLam = p.archivos
+    .map((a) => (a.rol === 'laminado' ? a.datos?.perfil : null))
+    .filter((x, k, todos): x is { id: number; nombre: string } => !!x && todos.findIndex((y) => y?.id === x.id) === k)
+  const imp = impresoras.find((i) => String(i.id) === f.impresora)
+  const deImpresoras = f.impresora ? [Number(f.impresora)] : reconocidas.map((i) => i.id)
+  const opcionesPerfil = perfiles
+    .filter((x) => deImpresoras.length === 0 || deImpresoras.includes(x.impresora_id))
+    .map((x) => ({ value: String(x.id), label: `${x.nombre} (${x.impresora})` }))
+  const tipo = imp ? (imp.tecnologia === 'fdm' ? 'filamento' : 'resina') : null
+  if (impresoras.length === 0) {
+    return (
+      <Card withBorder>
+        <Text fw={500}>Con qué se imprime</Text>
+        <Text size="sm" c="dimmed">
+          Agrega tus impresoras en{' '}
+          <Anchor component={Link} to="/impresoras">
+            Impresoras y materiales
+          </Anchor>{' '}
+          para elegir aquí con cuál, con qué perfil y con qué material se imprime.
+        </Text>
+      </Card>
+    )
+  }
+  return (
+    <Card withBorder>
+      <Text fw={500}>Con qué se imprime</Text>
+      <Text size="xs" c="dimmed" mb="xs">
+        {reconocidas.length > 0 ? (
+          <>
+            Por sus laminados: {reconocidas.map((i) => i.nombre).join(', ')}
+            {perfilesLam.length === 1 ? ` · perfil «${perfilesLam[0].nombre}»` : ''}
+            {p.material?.por === 'perfil' ? ` · ${p.material.nombre}` : ''}.{' '}
+            {p.impresora_id || p.perfil_id || p.material_id ? 'Lo elegido a mano manda.' : 'Elige a mano solo si es otra cosa.'}
+          </>
+        ) : p.impresora_id || p.perfil_id || p.material_id ? (
+          'Elegido a mano.'
+        ) : (
+          'Sus laminados no dicen para qué impresora son (o no tiene): elígela a mano.'
+        )}
+      </Text>
+      <Group grow align="flex-start">
+        <Select
+          label="Impresora"
+          placeholder={reconocidas[0]?.nombre ?? 'Sin elegir'}
+          clearable
+          data={impresoras.map((i) => ({ value: String(i.id), label: i.nombre }))}
+          value={f.impresora}
+          onChange={(v) => {
+            const otra = impresoras.find((i) => String(i.id) === v)
+            const perfil = perfiles.find((x) => String(x.id) === f.perfil)
+            const material = materiales.find((m) => String(m.id) === f.material)
+            const tipoNuevo = otra ? (otra.tecnologia === 'fdm' ? 'filamento' : 'resina') : null
+            setF({
+              impresora: v,
+              perfil: perfil && v && String(perfil.impresora_id) !== v ? null : f.perfil,
+              material: material && tipoNuevo && material.tipo !== tipoNuevo ? null : f.material,
+            })
+          }}
+        />
+        <Select
+          label="Perfil"
+          placeholder={p.perfil?.por === 'laminado' ? p.perfil.nombre : 'Sin elegir'}
+          clearable
+          searchable
+          data={opcionesPerfil}
+          value={f.perfil}
+          onChange={(v) => {
+            const x = perfiles.find((y) => String(y.id) === v)
+            setF({
+              impresora: x ? String(x.impresora_id) : f.impresora,
+              perfil: v,
+              material: f.material ?? (x?.material_id ? String(x.material_id) : null),
+            })
+          }}
+        />
+        <Select
+          label="Material"
+          placeholder={p.material?.por === 'perfil' ? p.material.nombre : 'Sin elegir'}
+          clearable
+          searchable
+          data={materiales.filter((m) => !tipo || m.tipo === tipo).map((m) => ({ value: String(m.id), label: nombreMaterial(m) }))}
+          value={f.material}
+          onChange={(v) => setF({ ...f, material: v })}
+        />
+      </Group>
+      {guardar.error && (
+        <Alert color="red" mt="xs">
+          {guardar.error.message}
+        </Alert>
+      )}
+      {cambio && (
+        <Group mt="xs">
+          <Button size="xs" loading={guardar.isPending} onClick={() => guardar.mutate()}>
+            Guardar
+          </Button>
+          <Button size="xs" variant="subtle" onClick={() => setF(inicial())}>
+            Deshacer cambios
+          </Button>
+        </Group>
+      )}
+    </Card>
+  )
 }
 
 function Datos({ p }: { p: PlacaFicha }) {
@@ -349,6 +487,13 @@ function Archivos({ p, ver }: { p: PlacaFicha; ver: (a: { id: number; nombre: st
             {resumenDatos(a.datos)}
           </Text>
         )}
+        {a.rol === 'laminado' && a.datos && !a.datos.error && (a.datos.res_x || a.datos.impresora) && (
+          <Text size="xs" c={a.datos.impresora ? 'teal' : 'dimmed'}>
+            {a.datos.impresora
+              ? `Para ${a.datos.impresora.nombre}${a.datos.perfil ? ` · perfil «${a.datos.perfil.nombre}»` : ' · ningún perfil suyo tiene esta capa y exposición'}`
+              : 'Para una impresora que no está en la app'}
+          </Text>
+        )}
         {a.datos?.error && (
           <Text size="xs" c="orange">
             No se pudo leer: {a.datos.error.split(': ').slice(1).join(': ') || a.datos.error}
@@ -517,6 +662,7 @@ export default function Placa() {
         </Stack>
       </Group>
       <Modelos p={p} />
+      <ConQue key={`${p.actualizada}-${p.impresora_id}-${p.perfil_id}-${p.material_id}`} p={p} />
       <Archivos p={p} ver={setViendo} />
       <Datos key={p.actualizada} p={p} />
       <Modal opened={viendo !== null} onClose={() => setViendo(null)} title={viendo?.nombre} size="lg" centered>

@@ -204,6 +204,9 @@ export interface DatosArchivoPlaca {
   peso_g: number | null
   n_placas: number | null
   error: string | null
+  /** Reconocidos por la pantalla del laminado y por su capa y exposición. */
+  impresora?: { id: number; nombre: string } | null
+  perfil?: { id: number; nombre: string } | null
 }
 
 export interface ModeloDePlaca {
@@ -235,6 +238,13 @@ export interface PlacaFila {
   laminados: DatosArchivoPlaca[]
   n_placas: number | null
   modelos: ModeloDePlaca[]
+  impresora_id: number | null
+  material_id: number | null
+  perfil_id: number | null
+  /** Elegida a mano y las que se reconocen por los laminados. */
+  impresoras: Ref[]
+  perfil: Ref | null
+  material: Ref | null
 }
 
 export interface ListaPlacas {
@@ -281,4 +291,176 @@ export interface ResumenPlacas {
   fallidas: number
   vistas_pendientes: number
   en_curso: { id: number; tipo: string } | null
+}
+
+// ---------- fase 5: impresoras, materiales y perfiles ----------
+
+export type Tecnologia = 'resina' | 'fdm'
+
+/** Algo ligado y por qué: elegido a mano, reconocido por el laminado o tomado del perfil. */
+export interface Ref {
+  id: number
+  nombre: string
+  por: 'elegida' | 'elegido' | 'laminado' | 'perfil'
+}
+
+export interface Impresora {
+  id: number
+  nombre: string
+  tecnologia: Tecnologia
+  marca: string
+  modelo: string
+  volumen_x_mm: number | null
+  volumen_y_mm: number | null
+  volumen_z_mm: number | null
+  boquilla_mm: number | null
+  res_x: number | null
+  res_y: number | null
+  pixel_um: number | null
+  potencia_w: number | null
+  carpeta: string
+  perfil_id: number | null
+  perfil: string | null
+  en_uso: boolean
+  notas: string
+  origen: string | null
+  n_perfiles: number
+  n_placas: number
+  n_laminados: number
+}
+
+export interface DocumentoImpresora {
+  id: number
+  ruta: string
+  carpeta: string
+  nombre: string
+  ext: string
+  tipo: string
+  bytes: number
+  mtime_ms: number
+  miniatura: string | null
+}
+
+export interface ImpresoraFicha extends Impresora {
+  perfiles: Perfil[]
+  documentos: DocumentoImpresora[]
+}
+
+export interface Material {
+  id: number
+  tipo: 'resina' | 'filamento'
+  marca: string
+  nombre: string
+  subtipo: string
+  color: string
+  color_hex: string
+  presentacion: number | null
+  precio: number | null
+  precio_unidad: number | null
+  densidad: number | null
+  diametro_mm: number | null
+  queda: number | null
+  en_uso: boolean
+  notas: string
+  origen: string | null
+  n_perfiles: number
+  n_placas: number
+}
+
+export type Parametros = Record<string, number | string>
+
+export interface Perfil {
+  id: number
+  nombre: string
+  impresora_id: number
+  impresora: string
+  tecnologia: Tecnologia
+  material_id: number | null
+  material: string | null
+  capa_mm: number | null
+  parametros: Parametros
+  version: number
+  en_uso: boolean
+  predeterminado: boolean
+  notas: string
+  origen: 'manual' | 'importado'
+  n_archivos: number
+  creado: number
+  actualizado: number
+}
+
+export interface VersionPerfil {
+  version: number
+  material: string | null
+  capa_mm: number | null
+  parametros: Parametros
+  desde: number
+  hasta: number
+  usuario: string
+}
+
+export interface ArchivoPerfil {
+  id: number
+  ruta: string
+  nombre: string
+  ext: string
+  tipo: string
+  bytes: number
+  mtime_ms: number
+  estado: 'presente' | 'falta'
+}
+
+export interface PerfilFicha extends Perfil {
+  archivos: ArchivoPerfil[]
+  versiones: VersionPerfil[]
+  placas: { id: number; nombre: string; carpeta: string; por: 'elegido' | 'laminado' }[]
+}
+
+export interface Campo {
+  clave: string
+  etiqueta: string
+  unidad: string
+  tecnologia: Tecnologia
+  tipo: 'numero' | 'entero' | 'texto'
+  min: number
+  max: number
+}
+
+export interface Propuesta {
+  clave: string
+  clase: 'impresora' | 'material' | 'perfil'
+  nombre: string
+  detalle: string
+  datos: Record<string, unknown> & { parametros?: Parametros; capa_mm?: number }
+  impresora: string | null
+  material: string | null
+  archivos: number[]
+  fuentes: string[]
+  predeterminado: boolean
+  marcada: boolean
+  importable: boolean
+  avisos: string[]
+  ya: number | null
+}
+
+export interface Importables {
+  propuestas: Propuesta[]
+  errores: string[]
+}
+
+export interface ResumenTaller {
+  impresoras: number
+  materiales: number
+  perfiles: number
+  perfiles_en_uso: number
+  laminados_sin_impresora: { maquina: string | null; res_x: number; res_y: number; laminados: number }[]
+}
+
+export interface ArchivoEncontrado {
+  id: number
+  ruta: string
+  nombre: string
+  ext: string
+  tipo: string
+  bytes: number
 }

@@ -19,6 +19,7 @@ use crate::{
     db::ahora,
     error::ApiError,
     placas::{self, SQL_PORTADA},
+    taller::{SQL_MISMA_PANTALLA, Taller},
     trabajos,
 };
 
@@ -55,6 +56,8 @@ pub struct Filtros {
     laminado: Option<String>,
     juego: Option<String>,
     modelo_id: Option<i64>,
+    /// elegida a mano o con un laminado para su pantalla
+    impresora_id: Option<i64>,
     /// nombre (por omisión: carpeta y nombre) | reciente | laminado (las que tienen laminado primero)
     orden: Option<String>,
     pagina: Option<i64>,
@@ -120,6 +123,18 @@ fn condiciones(qb: &mut QueryBuilder<Sqlite>, f: &Filtros) {
         .push_bind(j.to_string())
         .push(")");
     }
+    if let Some(i) = f.impresora_id {
+        qb.push(" AND (p.impresora_id = ")
+            .push_bind(i)
+            .push(
+                " OR EXISTS (SELECT 1 FROM placa_archivos pa JOIN datos_placa d ON d.archivo_id = pa.archivo_id
+                   JOIN impresoras i ON i.id = ",
+            )
+            .push_bind(i)
+            .push(format!(
+                " WHERE pa.placa_id = p.id AND pa.rol = 'laminado' AND {SQL_MISMA_PANTALLA}))"
+            ));
+    }
     if let Some(m) = f.modelo_id {
         qb.push(
             " AND EXISTS (SELECT 1 FROM placa_modelos pm WHERE pm.placa_id = p.id AND pm.estado <> 'rechazado'
@@ -142,6 +157,9 @@ struct FilaPlaca {
     notas: String,
     n_archivos: i64,
     n_presentes: i64,
+    impresora_id: Option<i64>,
+    material_id: Option<i64>,
+    perfil_id: Option<i64>,
     #[serde(skip)]
     portada_id: Option<i64>,
 }
@@ -152,6 +170,7 @@ static SELECT_PLACA: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
                 (SELECT count(*) FROM placa_archivos pa WHERE pa.placa_id = p.id) AS n_archivos,
                 (SELECT count(*) FROM placa_archivos pa JOIN archivos a ON a.id = pa.archivo_id
                  WHERE pa.placa_id = p.id AND a.estado = 'presente') AS n_presentes,
+                p.impresora_id, p.material_id, p.perfil_id,
                 {SQL_PORTADA} AS portada_id
          FROM placas p"
     )
@@ -201,6 +220,56 @@ struct ModeloDePlaca {
     estado: String,
     origen: String,
     cantidad: Option<i64>,
+}
+
+fn ref_json(id: i64, nombre: &str, por: &str) -> Value {
+    json!({ "id": id, "nombre": nombre, "por": por })
+}
+
+/// Un laminado con la impresora (por su pantalla) y el perfil (por capa y exposición) que se le reconocen.
+fn laminado_json(t: &Taller, d: &DatosArchivo) -> Value {
+    let mut v = serde_json::to_value(d).unwrap_or(Value::Null);
+    let imp = t.impresora_de(d.res_x, d.res_y);
+    v["impresora"] = imp.map_or(Value::Null, |i| json!({ "id": i.id, "nombre": i.nombre }));
+    v["perfil"] = imp
+        .and_then(|i| t.perfil_de(i.id, d.capa_mm, d.exposicion_s, d.exposicion_base_s))
+        .map_or(Value::Null, |p| json!({ "id": p.id, "nombre": p.nombre }));
+    v
+}
+
+/// Con qué se imprime la placa: lo elegido a mano y, si no, lo que se reconoce de sus laminados.
+fn con_que(t: &Taller, f: &FilaPlaca, datos: &[&DatosArchivo], v: &mut Value) {
+    let mut impresoras: Vec<Value> = Vec::new();
+    if let Some(i) = f.impresora_id.and_then(|i| t.impresora(i)) {
+        impresoras.push(ref_json(i.id, &i.nombre, "elegida"));
+    }
+    let mut perfiles: Vec<(i64, String, Option<i64>)> = Vec::new();
+    for d in datos.iter().filter(|d| d.rol == "laminado") {
+        if let Some(i) = t.impresora_de(d.res_x, d.res_y) {
+            if !impresoras.iter().any(|x| x["id"] == i.id) {
+                impresoras.push(ref_json(i.id, &i.nombre, "laminado"));
+            }
+            if let Some(p) = t.perfil_de(i.id, d.capa_mm, d.exposicion_s, d.exposicion_base_s)
+                && !perfiles.iter().any(|x| x.0 == p.id)
+            {
+                perfiles.push((p.id, p.nombre.clone(), p.material_id));
+            }
+        }
+    }
+    let elegido = f.perfil_id.and_then(|p| t.perfil(p));
+    let (perfil, material_del_perfil) = match (elegido, perfiles.as_slice()) {
+        (Some(p), _) => (ref_json(p.id, &p.nombre, "elegido"), p.material_id),
+        (None, [(id, nombre, m)]) => (ref_json(*id, nombre, "laminado"), *m),
+        _ => (Value::Null, None),
+    };
+    let material = match (f.material_id, material_del_perfil) {
+        (Some(m), _) => t.materiales.get(&m).map(|n| ref_json(m, n, "elegido")),
+        (None, Some(m)) => t.materiales.get(&m).map(|n| ref_json(m, n, "perfil")),
+        _ => None,
+    };
+    v["impresoras"] = json!(impresoras);
+    v["perfil"] = perfil;
+    v["material"] = material.unwrap_or(Value::Null);
 }
 
 fn en_lista(qb: &mut QueryBuilder<Sqlite>, ids: &[i64]) {
@@ -312,6 +381,7 @@ async fn listar(pool: &SqlitePool, f: &Filtros) -> Result<Value, ApiError> {
     for d in datos_de(pool, &ids).await? {
         datos.entry(d.placa_id).or_default().push(d);
     }
+    let taller = Taller::cargar(pool).await?;
     let placas: Vec<Value> = filas
         .into_iter()
         .map(|p| {
@@ -326,8 +396,10 @@ async fn listar(pool: &SqlitePool, f: &Filtros) -> Result<Value, ApiError> {
             v["laminados"] = json!(
                 ds.iter()
                     .filter(|d| d.rol == "laminado")
+                    .map(|d| laminado_json(&taller, d))
                     .collect::<Vec<_>>()
             );
+            con_que(&taller, &p, &ds.iter().collect::<Vec<_>>(), &mut v);
             v["n_placas"] = json!(ds.iter().find_map(|d| d.n_placas));
             v["modelos"] = json!(modelos.remove(&p.id).unwrap_or_default());
             v
@@ -514,7 +586,9 @@ async fn ficha(
         None => None,
     };
     let cl = claves(p, &fila.portada_id.into_iter().collect::<Vec<_>>()).await?;
+    let taller = Taller::cargar(p).await?;
     let mut v = serde_json::to_value(&fila).unwrap_or(Value::Null);
+    con_que(&taller, &fila, &datos.values().collect::<Vec<_>>(), &mut v);
     v["portada"] = portada_json(fila.portada_id, &cl);
     v["portada_elegida"] = json!(elegida);
     v["creada"] = json!(creada);
@@ -524,7 +598,9 @@ async fn ficha(
             .iter()
             .map(|a| {
                 let mut x = serde_json::to_value(a).unwrap_or(Value::Null);
-                x["datos"] = json!(datos.remove(&a.id));
+                x["datos"] = datos
+                    .remove(&a.id)
+                    .map_or(Value::Null, |d| laminado_json(&taller, &d));
                 x
             })
             .collect::<Vec<_>>()
@@ -546,6 +622,63 @@ struct CambiosPlaca {
     favorita: Option<bool>,
     sin_modelo: Option<bool>,
     notas: Option<String>,
+    #[serde(default, deserialize_with = "doble")]
+    impresora_id: Option<Option<i64>>,
+    #[serde(default, deserialize_with = "doble")]
+    material_id: Option<Option<i64>>,
+    #[serde(default, deserialize_with = "doble")]
+    perfil_id: Option<Option<i64>>,
+}
+
+/// Impresora, material y perfil de una placa deben cuadrar entre sí (lo que no vino se toma de la placa).
+async fn revisar_con_que(pool: &SqlitePool, id: i64, c: &CambiosPlaca) -> Result<(), ApiError> {
+    if c.impresora_id.is_none() && c.material_id.is_none() && c.perfil_id.is_none() {
+        return Ok(());
+    }
+    let (imp, mat, per): (Option<i64>, Option<i64>, Option<i64>) =
+        sqlx::query_as("SELECT impresora_id, material_id, perfil_id FROM placas WHERE id = ?")
+            .bind(id)
+            .fetch_one(pool)
+            .await?;
+    let imp = c.impresora_id.unwrap_or(imp);
+    let mat = c.material_id.unwrap_or(mat);
+    let per = c.perfil_id.unwrap_or(per);
+    let tecnologia: Option<String> = match imp {
+        Some(i) => Some(
+            sqlx::query_scalar("SELECT tecnologia FROM impresoras WHERE id = ?")
+                .bind(i)
+                .fetch_optional(pool)
+                .await?
+                .ok_or_else(|| ApiError::Invalido("Esa impresora no existe".into()))?,
+        ),
+        None => None,
+    };
+    if let Some(p) = per {
+        let de: Option<i64> = sqlx::query_scalar("SELECT impresora_id FROM perfiles WHERE id = ?")
+            .bind(p)
+            .fetch_optional(pool)
+            .await?;
+        let de = de.ok_or_else(|| ApiError::Invalido("Ese perfil no existe".into()))?;
+        if imp.is_some_and(|i| i != de) {
+            return Err(ApiError::Invalido("Ese perfil es de otra impresora".into()));
+        }
+    }
+    if let Some(m) = mat {
+        let tipo: Option<String> = sqlx::query_scalar("SELECT tipo FROM materiales WHERE id = ?")
+            .bind(m)
+            .fetch_optional(pool)
+            .await?;
+        let tipo = tipo.ok_or_else(|| ApiError::Invalido("Ese material no existe".into()))?;
+        if let Some(t) = &tecnologia {
+            let esperado = if t == "fdm" { "filamento" } else { "resina" };
+            if tipo != esperado {
+                return Err(ApiError::Invalido(format!(
+                    "Esa impresora usa {esperado}, no {tipo}"
+                )));
+            }
+        }
+    }
+    Ok(())
 }
 
 async fn editar(
@@ -570,7 +703,23 @@ async fn editar(
     if c.notas.as_ref().is_some_and(|n| n.chars().count() > 5000) {
         return Err(ApiError::Invalido("Las notas pasan de 5,000 letras".into()));
     }
+    revisar_con_que(&st.pool, id, &c).await?;
     let mut tx = st.pool.begin().await?;
+    for (campo, valor) in [
+        ("impresora_id", c.impresora_id),
+        ("material_id", c.material_id),
+        ("perfil_id", c.perfil_id),
+    ] {
+        if let Some(v) = valor {
+            sqlx::query(sqlx::AssertSqlSafe(format!(
+                "UPDATE placas SET {campo} = ? WHERE id = ?"
+            )))
+            .bind(v)
+            .bind(id)
+            .execute(&mut *tx)
+            .await?;
+        }
+    }
     sqlx::query(
         "UPDATE placas SET nombre = coalesce(?, nombre), estado = coalesce(?, estado),
             favorita = coalesce(?, favorita), sin_modelo = coalesce(?, sin_modelo), notas = coalesce(?, notas),

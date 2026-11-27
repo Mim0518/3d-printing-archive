@@ -21,7 +21,7 @@ import { api } from '../api'
 import { COLOR_TIPO, cuando, n, tamano } from '../formato'
 import { useYo } from '../sesion'
 import { useTrabajo } from '../trabajo'
-import type { Resumen, ResumenMiniaturas, ResumenPlacas, Trabajo } from '../tipos'
+import type { Resumen, ResumenMiniaturas, ResumenPlacas, ResumenTaller, Trabajo } from '../tipos'
 
 function Miniaturas() {
   const qc = useQueryClient()
@@ -91,6 +91,29 @@ function Placas() {
         )}
       </Group>
       <Progress value={d.total ? ((d.confirmadas + d.sin_modelo) * 100) / d.total : 0} mt="sm" color="green" />
+    </Card>
+  )
+}
+
+function Taller() {
+  const r = useQuery({ queryKey: ['taller-resumen'], queryFn: () => api<ResumenTaller>('/taller/resumen') })
+  const d = r.data
+  if (!d) return null
+  return (
+    <Card withBorder>
+      <Group justify="space-between" align="flex-start">
+        <div>
+          <Text fw={500}>Impresoras y materiales</Text>
+          <Text size="sm" c="dimmed">
+            {d.impresoras === 0
+              ? 'Todavía no hay impresoras ni perfiles en la app.'
+              : `${n(d.impresoras)} impresoras · ${n(d.materiales)} materiales · ${n(d.perfiles_en_uso)} perfiles en uso`}
+          </Text>
+        </div>
+        <Button variant="light" component={Link} to={d.impresoras === 0 ? '/impresoras/importar' : '/impresoras'}>
+          {d.impresoras === 0 ? 'Importar de tus archivos de perfiles' : 'Ver'}
+        </Button>
+      </Group>
     </Card>
   )
 }
@@ -209,6 +232,7 @@ export default function Inicio() {
       <Escaneo resumen={d} />
       <Miniaturas />
       <Placas />
+      <Taller />
 
       <SimpleGrid cols={{ base: 1, md: 2 }}>
         <Card withBorder>

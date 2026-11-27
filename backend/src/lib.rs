@@ -14,6 +14,7 @@ pub mod miniaturas;
 pub mod mudanzas;
 pub mod placas;
 pub mod rutas;
+pub mod taller;
 pub mod trabajos;
 
 use std::sync::Arc;

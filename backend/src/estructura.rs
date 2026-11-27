@@ -58,7 +58,8 @@ pub fn extension(nombre: &str) -> String {
 pub fn tipo_de(ext: &str) -> &'static str {
     match ext {
         "stl" | "obj" | "3mf" | "step" | "stp" | "blend" | "ply" | "ztl" | "fbx" => "malla",
-        "lys" | "chitubox" | "lyt" | "scene" | "pwscene" | "pwsr" => "escena",
+        "lys" | "chitubox" | "lyt" | "scene" | "pwscene" => "escena",
+        "pwsr" | "lyr" | "orca_printer" | "orca_filament" => "perfil",
         "ctb" | "photon" | "pwmx" | "pws" | "pwma" | "pm4n" | "pm3" | "pm3m" | "pm3r" | "pwmb"
         | "pwms" | "pwmo" | "pmsq" | "goo" | "prz" | "cbddlp" | "jxs" | "gcode" | "bgcode" => {
             "laminado"
@@ -109,6 +110,7 @@ mod pruebas {
         assert_eq!(tipo_de("stl"), "malla");
         assert_eq!(tipo_de("lys"), "escena");
         assert_eq!(tipo_de("pm4n"), "laminado");
+        assert_eq!(tipo_de("pwsr"), "perfil");
         assert_eq!(tipo_de("002"), "comprimido");
         assert_eq!(tipo_de("xyz"), "otro");
         assert_eq!(padre("a/b/c.stl"), "a/b");
