@@ -30,6 +30,7 @@ import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 
 import { api } from '../api'
+import { ImpresionesDePlaca } from '../componentes/Impresiones'
 import Miniatura from '../componentes/Miniatura'
 import { COLOR_TIPO, corto, cuando, duracion, maquina, tamano, titulo } from '../formato'
 import { ESTADO_PLACA, nombreMaterial, useRefrescarTaller, useTaller } from '../opciones'
@@ -663,6 +664,7 @@ export default function Placa() {
       </Group>
       <Modelos p={p} />
       <ConQue key={`${p.actualizada}-${p.impresora_id}-${p.perfil_id}-${p.material_id}`} p={p} />
+      <ImpresionesDePlaca placaId={p.id} />
       <Archivos p={p} ver={setViendo} />
       <Datos key={p.actualizada} p={p} />
       <Modal opened={viendo !== null} onClose={() => setViendo(null)} title={viendo?.nombre} size="lg" centered>

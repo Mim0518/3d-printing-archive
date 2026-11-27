@@ -5,6 +5,7 @@ import { Navigate, Route, Routes, useLocation } from 'react-router'
 import Marco from './componentes/Marco'
 import Catalogo from './paginas/Catalogo'
 import Etiquetas from './paginas/Etiquetas'
+import Existencias from './paginas/Existencias'
 import Importar from './paginas/Importar'
 import Impresora from './paginas/Impresora'
 import Inicio from './paginas/Inicio'
@@ -55,6 +56,7 @@ export default function App() {
         <Route path="impresoras/importar" element={<Importar />} />
         <Route path="impresoras/:id" element={<Impresora />} />
         <Route path="perfiles/:id" element={<Perfil />} />
+        <Route path="existencias" element={<Existencias />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

@@ -81,3 +81,43 @@ export function useRefrescarTaller() {
     for (const k of [...CLAVES_TALLER, 'placas', 'placa']) void qc.invalidateQueries({ queryKey: [k] })
   }
 }
+
+export const ACABADO: Record<string, { texto: string; color: string }> = {
+  sin_pintar: { texto: 'sin pintar', color: 'gray' },
+  imprimada: { texto: 'con imprimación', color: 'blue' },
+  pintada: { texto: 'pintada', color: 'grape' },
+}
+
+export const RESULTADO: Record<string, { texto: string; color: string }> = {
+  bien: { texto: 'salió bien', color: 'green' },
+  parcial: { texto: 'parcial', color: 'yellow' },
+  fallida: { texto: 'falló', color: 'red' },
+}
+
+export const MOTIVO: Record<string, string> = {
+  impresion: 'impresión',
+  venta: 'venta',
+  merma: 'merma',
+  ajuste: 'ajuste',
+  acabado: 'cambio de acabado',
+  traslado: 'cambio de lugar',
+}
+
+/** Lo que cambia existencias o impresiones: se vuelven a pedir sus listas. */
+export function useRefrescarExistencias() {
+  const qc = useQueryClient()
+  return () => {
+    for (const k of [
+      'existencias',
+      'existencia',
+      'existencias-resumen',
+      'existencias-modelo',
+      'impresiones',
+      'propuesta-impresion',
+      'placa',
+      'placas',
+      'materiales',
+    ])
+      void qc.invalidateQueries({ queryKey: [k] })
+  }
+}

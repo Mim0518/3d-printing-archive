@@ -3,6 +3,7 @@
 mod auth;
 mod catalogo;
 mod edicion;
+mod existencias;
 mod miniaturas;
 mod mudanzas;
 mod placas;
@@ -18,6 +19,7 @@ pub fn api() -> Router<AppState> {
         .merge(auth::rutas())
         .merge(catalogo::rutas())
         .merge(edicion::rutas())
+        .merge(existencias::rutas())
         .merge(miniaturas::rutas())
         .merge(mudanzas::rutas())
         .merge(placas::rutas())

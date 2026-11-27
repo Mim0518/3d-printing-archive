@@ -3,6 +3,7 @@
 pub mod auth;
 pub mod catalogo;
 pub mod config;
+pub mod costos;
 pub mod db;
 pub mod edicion;
 pub mod error;

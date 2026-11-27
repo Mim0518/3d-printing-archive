@@ -122,3 +122,8 @@ export function resumenImpresora(i: {
     .filter(Boolean)
     .join(' · ')
 }
+
+/** 1 → «1 impresión»; 3 → «3 impresiones». */
+export function plural(x: number, uno: string, varios: string): string {
+  return `${n(x)} ${x === 1 ? uno : varios}`
+}

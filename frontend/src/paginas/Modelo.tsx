@@ -26,6 +26,7 @@ import { api } from '../api'
 import EditorModelo from '../componentes/EditorModelo'
 import Galeria from '../componentes/Galeria'
 import Miniatura from '../componentes/Miniatura'
+import ExistenciasDelModelo from '../componentes/ExistenciasDelModelo'
 import PlacasDelModelo from '../componentes/PlacasDelModelo'
 import VisorModal from '../componentes/VisorModal'
 import { COLOR_TIPO, cuando, n, tamano, titulo } from '../formato'
@@ -244,6 +245,7 @@ export default function Modelo() {
 
       <Galeria modelo={m} ver={setViendo} />
       <PlacasDelModelo modeloId={m.id} />
+      <ExistenciasDelModelo modeloId={m.id} nombre={titulo(m)} />
 
       <Card withBorder>
         <Group justify="space-between" mb="xs" wrap="wrap">

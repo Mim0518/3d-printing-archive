@@ -18,10 +18,10 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 
 import { api } from '../api'
-import { COLOR_TIPO, cuando, n, tamano } from '../formato'
+import { COLOR_TIPO, cuando, dinero, n, plural, tamano } from '../formato'
 import { useYo } from '../sesion'
 import { useTrabajo } from '../trabajo'
-import type { Resumen, ResumenMiniaturas, ResumenPlacas, ResumenTaller, Trabajo } from '../tipos'
+import type { Resumen, ResumenExistencias, ResumenMiniaturas, ResumenPlacas, ResumenTaller, Trabajo } from '../tipos'
 
 function Miniaturas() {
   const qc = useQueryClient()
@@ -112,6 +112,34 @@ function Taller() {
         </div>
         <Button variant="light" component={Link} to={d.impresoras === 0 ? '/impresoras/importar' : '/impresoras'}>
           {d.impresoras === 0 ? 'Importar de tus archivos de perfiles' : 'Ver'}
+        </Button>
+      </Group>
+    </Card>
+  )
+}
+
+function Existencias() {
+  const r = useQuery({ queryKey: ['existencias-resumen'], queryFn: () => api<ResumenExistencias>('/existencias/resumen') })
+  const d = r.data
+  if (!d) return null
+  return (
+    <Card withBorder>
+      <Group justify="space-between" align="flex-start">
+        <div>
+          <Text fw={500}>Existencias</Text>
+          <Text size="sm" c="dimmed">
+            {d.piezas === 0
+              ? 'Todavía no hay miniaturas impresas registradas.'
+              : `${plural(d.piezas, 'miniatura', 'miniaturas')} de ${plural(d.modelos, 'modelo', 'modelos')} · ${dinero(d.valor_costo)} a costo${d.valor_venta ? ` · ${dinero(d.valor_venta)} a precio` : ''}`}
+            {d.bajo_minimo ? ` · ${n(d.bajo_minimo)} bajo el mínimo` : ''}
+          </Text>
+          <Text size="xs" c="dimmed">
+            {plural(d.impresiones_mes, 'impresión', 'impresiones')} en los últimos 30 días ({dinero(d.costo_mes)})
+            {d.fallidas_mes ? `, ${n(d.fallidas_mes)} fallidas` : ''}
+          </Text>
+        </div>
+        <Button variant="light" component={Link} to={d.ajustes_faltan.length > 5 ? '/existencias?ver=costos' : '/existencias'}>
+          {d.ajustes_faltan.length > 5 ? 'Capturar tus costos' : 'Ver'}
         </Button>
       </Group>
     </Card>
@@ -233,6 +261,7 @@ export default function Inicio() {
       <Miniaturas />
       <Placas />
       <Taller />
+      <Existencias />
 
       <SimpleGrid cols={{ base: 1, md: 2 }}>
         <Card withBorder>

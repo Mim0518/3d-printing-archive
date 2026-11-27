@@ -464,3 +464,188 @@ export interface ArchivoEncontrado {
   tipo: string
   bytes: number
 }
+
+// ---------- fase 6: impresiones, existencias y costos ----------
+
+export type Acabado = 'sin_pintar' | 'imprimada' | 'pintada'
+export type Resultado = 'bien' | 'parcial' | 'fallida'
+
+export interface CampoAjuste {
+  clave: string
+  etiqueta: string
+  ayuda: string
+  unidad: string
+  min: number
+  max: number
+}
+
+export interface AjustesCostos {
+  campos: CampoAjuste[]
+  valores: Record<string, number>
+  moneda: string
+}
+
+export interface Desglose {
+  material: number | null
+  luz: number | null
+  limpieza: number | null
+  fallas: number | null
+  total: number
+  consumo_material: number | null
+  faltan: string[]
+}
+
+export interface PrecioSugerido {
+  costo: number | null
+  acabado: number
+  empaque: number
+  margen: number | null
+  sugerido: number | null
+  faltan: string[]
+}
+
+export interface Calculo {
+  desglose: Desglose
+  costo_unitario: number | null
+  precio: PrecioSugerido
+}
+
+export interface PiezaPropuesta {
+  modelo_id: number
+  nombre: string
+  faccion: string
+  carpeta: string
+  cantidad: number | null
+  estado: 'sugerido' | 'confirmado'
+}
+
+export interface PropuestaImpresion {
+  placa_id: number
+  placa: string
+  impresora_id: number | null
+  perfil_id: number | null
+  material_id: number | null
+  laminado: { id: number; nombre: string } | null
+  consumo: number | null
+  unidad: 'ml' | 'g'
+  /** «anterior»: lo que gastó la última impresión de la placa */
+  consumo_origen: 'laminado' | 'anterior' | 'capturado'
+  tiempo_s: number | null
+  piezas: PiezaPropuesta[]
+  ubicaciones: string[]
+  /** con cuántas miniaturas se reparte (las de la placa o las de la última vez) */
+  estimado: Calculo & { piezas: number }
+}
+
+export interface MiniaturaImpresa {
+  modelo_id: number
+  nombre: string
+  faccion: string
+  carpeta: string
+  acabado: Acabado
+  ubicacion: string
+  cantidad: number
+}
+
+export interface Impresion {
+  id: number
+  placa_id: number | null
+  placa: string
+  impresora_id: number | null
+  impresora: string | null
+  material_id: number | null
+  material: string | null
+  perfil_id: number | null
+  perfil: string | null
+  perfil_version: number | null
+  fecha: number
+  resultado: Resultado
+  consumo: number | null
+  unidad: 'ml' | 'g'
+  consumo_origen: 'laminado' | 'capturado'
+  tiempo_s: number | null
+  costo_material: number | null
+  costo_luz: number | null
+  costo_limpieza: number | null
+  costo_fallas: number | null
+  costo_total: number
+  piezas: number
+  material_descontado: number | null
+  notas: string
+  usuario: string
+  miniaturas: MiniaturaImpresa[]
+}
+
+export interface ListaImpresiones {
+  total: number
+  costo: number
+  piezas: number
+  pagina: number
+  por_pagina: number
+  impresiones: Impresion[]
+}
+
+export interface Existencia {
+  id: number
+  modelo_id: number
+  nombre: string
+  faccion: string
+  juego: string
+  estudio: string
+  carpeta: string
+  acabado: Acabado
+  ubicacion: string
+  precio: number | null
+  minimo: number | null
+  notas: string
+  cantidad: number
+  costo_unitario: number | null
+  ultimo: number | null
+  precio_sugerido: PrecioSugerido
+  precio_venta: number | null
+  valor_costo: number | null
+  valor_venta: number | null
+  bajo_minimo: boolean
+  portada: { id: number; clave: string } | null
+}
+
+export interface Movimiento {
+  id: number
+  delta: number
+  motivo: 'impresion' | 'venta' | 'merma' | 'ajuste' | 'acabado' | 'traslado'
+  costo_unitario: number | null
+  impresion_id: number | null
+  par_acabado: Acabado | null
+  par_ubicacion: string | null
+  notas: string
+  usuario: string
+  fecha: number
+}
+
+export interface ExistenciaFicha extends Existencia {
+  movimientos: Movimiento[]
+}
+
+export interface ResumenExistencias {
+  piezas: number
+  existencias: number
+  modelos: number
+  valor_costo: number
+  valor_venta: number
+  sin_precio: number
+  bajo_minimo: number
+  ubicaciones: { ubicacion: string; piezas: number }[]
+  impresiones: number
+  impresiones_mes: number
+  costo_mes: number
+  fallidas_mes: number
+  ajustes_faltan: string[]
+  moneda: string
+}
+
+export interface ExistenciasModelo {
+  existencias: Existencia[]
+  impresiones: ListaImpresiones
+  costo_promedio: number | null
+  precios: Record<Acabado, PrecioSugerido>
+}
