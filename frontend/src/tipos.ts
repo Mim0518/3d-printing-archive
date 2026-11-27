@@ -533,6 +533,8 @@ export interface PropuestaImpresion {
   tiempo_s: number | null
   piezas: PiezaPropuesta[]
   ubicaciones: string[]
+  /** pedidos abiertos a los que les faltan miniaturas de los modelos de la placa */
+  pedidos: { id: number; cliente: string; faltan: number }[]
   /** con cuántas miniaturas se reparte (las de la placa o las de la última vez) */
   estimado: Calculo & { piezas: number }
 }
@@ -648,4 +650,164 @@ export interface ExistenciasModelo {
   impresiones: ListaImpresiones
   costo_promedio: number | null
   precios: Record<Acabado, PrecioSugerido>
+}
+
+// ---------- fase 7: ventas ----------
+
+export type EstadoPedido = 'cotizado' | 'confirmado' | 'imprimiendo' | 'listo' | 'entregado' | 'cancelado'
+
+export interface Cliente {
+  id: number
+  nombre: string
+  whatsapp: string
+  telefono: string
+  correo: string
+  redes: string
+  notas: string
+  pedidos: number
+  comprado: number
+  ultimo: number | null
+}
+
+export interface PedidoFila {
+  id: number
+  cliente_id: number | null
+  cliente: string | null
+  estado: EstadoPedido
+  coleccion_id: number | null
+  coleccion: string | null
+  descuento: number
+  envio: number
+  fecha_entrega: number | null
+  entregado: number | null
+  notas: string
+  creado: number
+  actualizado: number
+  piezas: number
+  subtotal: number
+  pagado: number
+  apartadas: number
+  costo: number | null
+  total: number
+  saldo: number
+  faltan: number
+  ganancia: number | null
+}
+
+export interface ListaPedidos {
+  total: number
+  pagina: number
+  por_pagina: number
+  pedidos: PedidoFila[]
+}
+
+export interface LineaPedido {
+  id: number
+  modelo_id: number
+  nombre: string
+  faccion: string
+  juego: string
+  estudio: string
+  carpeta: string
+  acabado: Acabado
+  cantidad: number
+  precio: number
+  notas: string
+  apartadas: number
+  costo: number | null
+  placas: number
+  faltan: number
+  subtotal: number
+  disponibles: { id: number; acabado: Acabado; ubicacion: string; cantidad: number }[] | null
+  portada: { id: number; clave: string } | null
+}
+
+export interface Pago {
+  id: number
+  monto: number
+  fecha: number
+  metodo: 'efectivo' | 'transferencia' | 'tarjeta' | 'otro'
+  notas: string
+  usuario: string
+}
+
+export interface PedidoFicha extends PedidoFila {
+  lineas: LineaPedido[]
+  pagos: Pago[]
+  datos_cliente: { nombre: string; whatsapp: string; telefono: string; correo: string; redes: string } | null
+}
+
+export interface LineaColeccion {
+  id: number
+  modelo_id: number
+  nombre: string
+  faccion: string
+  juego: string
+  estudio: string
+  carpeta: string
+  acabado: Acabado
+  cantidad: number
+  precio_a_mano: number | null
+  foto_id: number | null
+  nota: string
+  orden: number
+  hay: number
+  placas: number
+  precio: number | null
+  precio_sugerido: number | null
+  costo: number | null
+  subtotal: number | null
+  faltan: number
+  foto: { id: number; clave: string } | null
+}
+
+export interface Coleccion {
+  id: number
+  nombre: string
+  descripcion: string
+  estado: 'borrador' | 'activa' | 'archivada'
+  precio_fijo: number | null
+  creada: number
+  actualizada: number
+  piezas: number
+  suma: number
+  precio: number
+  sin_precio: number
+  costo: number | null
+  ganancia: number | null
+  faltan: number
+  alcanza: boolean
+  moneda: string
+}
+
+export interface ColeccionFila extends Coleccion {
+  n_modelos: number
+  fotos: { id: number; clave: string }[]
+}
+
+export interface ColeccionFicha extends Coleccion {
+  lineas: LineaColeccion[]
+}
+
+export interface FotoModelo {
+  id: number
+  nombre: string
+  tipo: string
+  clave: string
+}
+
+export interface ResumenVentas {
+  dias: number
+  abiertos: number
+  atrasados: number
+  por_cobrar: number
+  vendidos: number
+  piezas: number
+  ingresos: number
+  envios: number
+  costo: number
+  ganancia: number
+  sin_costo: number
+  mas_vendidos: { modelo_id: number; nombre: string; faccion: string; juego: string; cantidad: number; ingreso: number; hay: number }[]
+  facciones: { faccion: string; juego: string; cantidad: number; ingreso: number }[]
 }

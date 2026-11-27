@@ -121,3 +121,47 @@ export function useRefrescarExistencias() {
       void qc.invalidateQueries({ queryKey: [k] })
   }
 }
+
+export const ESTADO_PEDIDO: Record<string, { texto: string; color: string }> = {
+  cotizado: { texto: 'cotizado', color: 'gray' },
+  confirmado: { texto: 'confirmado', color: 'blue' },
+  imprimiendo: { texto: 'imprimiendo', color: 'violet' },
+  listo: { texto: 'listo', color: 'teal' },
+  entregado: { texto: 'entregado', color: 'green' },
+  cancelado: { texto: 'cancelado', color: 'red' },
+}
+
+export const METODO_PAGO: Record<string, string> = {
+  efectivo: 'efectivo',
+  transferencia: 'transferencia',
+  tarjeta: 'tarjeta',
+  otro: 'otro',
+}
+
+export const ESTADO_COLECCION: Record<string, { texto: string; color: string }> = {
+  borrador: { texto: 'borrador', color: 'gray' },
+  activa: { texto: 'activa', color: 'green' },
+  archivada: { texto: 'archivada', color: 'dark' },
+}
+
+/** Lo que cambia pedidos, clientes o colecciones (y, de paso, las existencias que se apartan). */
+export function useRefrescarVentas() {
+  const qc = useQueryClient()
+  return () => {
+    for (const k of [
+      'pedidos',
+      'pedido',
+      'clientes',
+      'cliente',
+      'colecciones',
+      'coleccion',
+      'ventas-resumen',
+      'existencias',
+      'existencia',
+      'existencias-resumen',
+      'existencias-modelo',
+      'propuesta-impresion',
+    ])
+      void qc.invalidateQueries({ queryKey: [k] })
+  }
+}

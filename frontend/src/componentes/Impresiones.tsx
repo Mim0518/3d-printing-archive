@@ -88,6 +88,7 @@ function Formulario({ p, onListo }: { p: PropuestaImpresion; onListo: () => void
   const [minutos, setMinutos] = useState<number | string>(p.tiempo_s ? Math.round(p.tiempo_s / 60) : '')
   const [notas, setNotas] = useState('')
   const [descontar, setDescontar] = useState(true)
+  const [pedido, setPedido] = useState<string | null>(null)
   const [piezas, setPiezas] = useState<Pieza[]>(
     p.piezas.map((x) => ({
       modelo_id: x.modelo_id,
@@ -142,6 +143,7 @@ function Formulario({ p, onListo }: { p: PropuestaImpresion; onListo: () => void
                 })),
           notas,
           descontar_material: descontar,
+          pedido_id: pedido ? Number(pedido) : null,
         }),
       }),
     onSuccess: () => {
@@ -297,6 +299,17 @@ function Formulario({ p, onListo }: { p: PropuestaImpresion; onListo: () => void
             ))}
           </Stack>
         </Card>
+      )}
+      {p.pedidos.length > 0 && resultado !== 'fallida' && (
+        <Select
+          label="Para un pedido"
+          description="Lo que salga de sus modelos se aparta solo para ese pedido"
+          placeholder="No, va a las existencias"
+          clearable
+          data={p.pedidos.map((x) => ({ value: String(x.id), label: `#${x.id} ${x.cliente || 'sin cliente'} · faltan ${x.faltan}` }))}
+          value={pedido}
+          onChange={setPedido}
+        />
       )}
       <Textarea label="Notas" placeholder="Qué falló, qué ajustaste…" autosize minRows={1} value={notas} onChange={(e) => setNotas(e.currentTarget.value)} />
       <Card withBorder padding="xs" bg="var(--mantine-color-default-hover)">

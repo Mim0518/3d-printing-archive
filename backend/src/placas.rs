@@ -25,7 +25,7 @@ use crate::{
 
 /// Archivos que pueden ser placas. `.pwsr` es un perfil de resina de Photon Workshop, no una escena.
 const SQL_CANDIDATO: &str =
-    "((a.tipo IN ('escena', 'laminado') AND a.ext NOT IN ('pwsr')) OR a.ext = '3mf')";
+    "((a.tipo IN ('escena', 'laminado') AND a.ext NOT IN ('pwsr', 'lyt')) OR a.ext = '3mf')";
 
 #[derive(Debug, Default, Serialize)]
 pub struct Resultado {
@@ -437,8 +437,9 @@ pub async fn limpiar(pool: &SqlitePool) -> anyhow::Result<u64> {
         "DELETE FROM placas WHERE origen = 'detectada'
            AND NOT EXISTS (SELECT 1 FROM placa_archivos pa WHERE pa.placa_id = placas.id)
            AND estado = 'sin_probar' AND favorita = 0 AND notas = '' AND sin_modelo = 0
-           AND portada_archivo_id IS NULL
-           AND NOT EXISTS (SELECT 1 FROM placa_modelos pm WHERE pm.placa_id = placas.id AND pm.estado <> 'sugerido')",
+           AND portada_archivo_id IS NULL AND impresora_id IS NULL AND material_id IS NULL AND perfil_id IS NULL
+           AND NOT EXISTS (SELECT 1 FROM placa_modelos pm WHERE pm.placa_id = placas.id AND pm.estado <> 'sugerido')
+           AND NOT EXISTS (SELECT 1 FROM impresiones i WHERE i.placa_id = placas.id)",
     )
     .execute(pool)
     .await?;

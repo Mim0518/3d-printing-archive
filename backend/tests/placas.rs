@@ -84,8 +84,8 @@ async fn preparar(nombre: &str) -> (Juguete, SqlitePool, Router, String, Config)
     let base = std::env::temp_dir().join(format!("pa4-{nombre}-{}", std::process::id()));
     fs::remove_dir_all(&base).ok();
     let raiz = base.join("coleccion");
-    // Wraiths: una escena con su laminado y sus autoguardados, una escena sin vista previa con su malla
-    // gemela, y una carpeta de autoguardados sin escena (renombrada)
+    // Wraiths: una escena con su laminado y sus autoguardados (.lyt, que se ignoran), una escena sin vista
+    // previa con su malla gemela, y una carpeta de autoguardados sin escena
     escribir(&raiz, &format!("{A}/Supported/Torso Main.lys"), &lychee());
     escribir(
         &raiz,
@@ -233,21 +233,22 @@ async fn agrupa_y_sugiere_modelos() {
     // .pwsr (perfil de resina) y el 3MF que solo es malla no son placas
     assert_eq!(
         nombres,
-        [
-            "Boyz Mob x10",
-            "R_E_R_F",
-            "caja",
-            "Escuadra",
-            "Arm",
-            "Torso Main"
-        ],
+        ["Boyz Mob x10", "R_E_R_F", "caja", "Arm", "Torso Main"],
         "{filas:#?}"
     );
-    let torso = &filas[5].2;
+    let torso = &filas[4].2;
     assert!(torso.contains("Torso Main.lys:escena"), "{torso}");
     assert!(torso.contains("Torso Main.photon:laminado"), "{torso}");
-    assert!(torso.contains(":autoguardado"), "{torso}");
-    assert_eq!(filas[3].1, A, "el autoguardado va en la carpeta de arriba");
+    // los .lyt se ignoran: ni placas ni autoguardados, pero siguen en el inventario
+    assert!(!torso.contains(".lyt"), "{torso}");
+    let lyt: Vec<(String, i64)> = sqlx::query_as(
+        "SELECT a.tipo, (SELECT count(*) FROM placa_archivos pa WHERE pa.archivo_id = a.id) FROM archivos a
+         WHERE a.ext = 'lyt'",
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    assert_eq!(lyt, [("otro".to_string(), 0), ("otro".to_string(), 0)]);
 
     // la gemela de la escena sin vista previa
     let gemela: Option<String> = sqlx::query_scalar(
@@ -269,7 +270,6 @@ async fn agrupa_y_sugiere_modelos() {
     let esperado: Vec<(String, String, String)> = [
         ("Arm", "Wraiths", "carpeta"),
         ("Boyz Mob x10", "Boyz Mob", "nombre"),
-        ("Escuadra", "Wraiths", "carpeta"),
         ("Torso Main", "Wraiths", "carpeta"),
     ]
     .iter()
@@ -290,16 +290,16 @@ async fn agrupa_y_sugiere_modelos() {
     let r = placas::detectar(&pool).await.unwrap();
     assert_eq!(
         (r.leidos, r.nuevas, r.placas, r.sugerencias_nuevas),
-        (0, 0, 6, 0),
+        (0, 0, 5, 0),
         "{r:?}"
     );
 
     let (st, v) = pedir(&app, &c, Method::GET, "/api/v1/placas/resumen", None).await;
     assert_eq!(st, StatusCode::OK);
-    assert_eq!(v["total"], 6);
-    assert_eq!(v["por_confirmar"], 6);
+    assert_eq!(v["total"], 5);
+    assert_eq!(v["por_confirmar"], 5);
     assert_eq!(v["sin_sugerencia"], 2);
-    assert_eq!(v["sugerencias_por_carpeta"], 3);
+    assert_eq!(v["sugerencias_por_carpeta"], 2);
     assert_eq!(v["con_laminado"], 2);
 }
 
@@ -323,7 +323,7 @@ async fn confirma_rechaza_y_lo_rechazado_no_vuelve() {
     .await;
     assert_eq!(st, StatusCode::OK);
     let (_, v) = pedir(&app, &c, Method::POST, "/api/v1/placas/confirmar", None).await;
-    assert_eq!(v["confirmadas"], 2, "solo las de carpeta: {v}");
+    assert_eq!(v["confirmadas"], 1, "solo las de carpeta: {v}");
     // la sugerencia por nombre se confirma placa por placa, con su cantidad
     let (st, _) = pedir(
         &app,
@@ -385,7 +385,7 @@ async fn confirma_rechaza_y_lo_rechazado_no_vuelve() {
     let (_, v) = pedir(&app, &c, Method::GET, "/api/v1/placas/resumen", None).await;
     assert_eq!(
         (v["confirmadas"].as_i64(), v["sin_modelo"].as_i64()),
-        (Some(4), Some(1)),
+        (Some(3), Some(1)),
         "{v}"
     );
     assert_eq!(v["por_confirmar"], 1, "solo queda caja.3mf: {v}");
@@ -419,11 +419,7 @@ async fn confirma_rechaza_y_lo_rechazado_no_vuelve() {
         .iter()
         .map(|p| p["nombre"].as_str().unwrap())
         .collect();
-    assert_eq!(
-        nombres,
-        ["Torso Main", "Escuadra"],
-        "las que tienen laminado van primero"
-    );
+    assert_eq!(nombres, ["Torso Main"]);
     let (_, v) = pedir(
         &app,
         &c,
@@ -537,7 +533,7 @@ async fn placas_a_mano() {
 async fn vistas_previas_y_portada() {
     let (_j, pool, app, c, config) = preparar("vistas").await;
     let (_, v) = pedir(&app, &c, Method::GET, "/api/v1/placas/resumen", None).await;
-    assert_eq!(v["vistas_pendientes"], 4);
+    assert_eq!(v["vistas_pendientes"], 2);
     let r = miniaturas::generar(
         &pool,
         config.opciones_miniaturas(),
@@ -550,9 +546,9 @@ async fn vistas_previas_y_portada() {
     )
     .await
     .unwrap();
-    // solo los archivos de las placas: las tres escenas de Lychee y el proyecto 3MF (con la imagen de su placa,
-    // sin f3d); las demás mallas ni se intentan
-    assert_eq!((r.candidatos, r.generadas, r.fallidas), (4, 4, 0), "{r:?}");
+    // solo los archivos de las placas: la escena de Lychee y el proyecto 3MF (con la imagen de su placa, sin
+    // f3d); las demás mallas y los .lyt ni se intentan
+    assert_eq!((r.candidatos, r.generadas, r.fallidas), (2, 2, 0), "{r:?}");
     let (_, v) = pedir(&app, &c, Method::GET, "/api/v1/placas/resumen", None).await;
     assert_eq!(v["vistas_pendientes"], 0);
     let ok: Vec<String> = sqlx::query_scalar(
@@ -562,16 +558,7 @@ async fn vistas_previas_y_portada() {
     .fetch_all(&pool)
     .await
     .unwrap();
-    assert_eq!(
-        ok,
-        [
-            "Grey Knights_2023-08-18_12-58-34.lyt",
-            "Torso Main.lys",
-            "Torso Main_2025-01-01_10-00-00.lyt",
-            "caja.3mf"
-        ],
-        "{r:?}"
-    );
+    assert_eq!(ok, ["Torso Main.lys", "caja.3mf"], "{r:?}");
     let torso = placa_de(&pool, "Torso Main.lys").await;
     let lys: i64 = sqlx::query_scalar("SELECT id FROM archivos WHERE nombre = 'Torso Main.lys'")
         .fetch_one(&pool)
@@ -585,10 +572,7 @@ async fn vistas_previas_y_portada() {
         None,
     )
     .await;
-    assert_eq!(
-        v["portada"]["id"], lys,
-        "la escena va antes que el autoguardado: {v}"
-    );
+    assert_eq!(v["portada"]["id"], lys, "{v}");
     let photon = v["archivos"]
         .as_array()
         .unwrap()
@@ -617,23 +601,17 @@ async fn vistas_previas_y_portada() {
     )
     .await;
     assert_eq!(st, StatusCode::BAD_REQUEST);
-    let auto: i64 = sqlx::query_scalar(
-        "SELECT id FROM archivos WHERE nombre = 'Torso Main_2025-01-01_10-00-00.lyt'",
-    )
-    .fetch_one(&pool)
-    .await
-    .unwrap();
     let (st, _) = pedir(
         &app,
         &c,
         Method::PUT,
         &format!("/api/v1/placas/{torso}/portada"),
-        Some(json!({ "archivo_id": auto })),
+        Some(json!({ "archivo_id": lys })),
     )
     .await;
     assert_eq!(st, StatusCode::OK);
     let (_, v) = pedir(&app, &c, Method::GET, "/api/v1/placas?q=torso", None).await;
-    assert_eq!(v["placas"][0]["portada"]["id"], auto);
-    assert_eq!(v["placas"][0]["autoguardados"], 1);
-    assert_eq!(v["placas"][0]["formatos"], json!(["lys", "lyt", "photon"]));
+    assert_eq!(v["placas"][0]["portada"]["id"], lys);
+    assert_eq!(v["placas"][0]["autoguardados"], 0);
+    assert_eq!(v["placas"][0]["formatos"], json!(["lys", "photon"]));
 }

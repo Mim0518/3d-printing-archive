@@ -21,7 +21,7 @@ import { api } from '../api'
 import { COLOR_TIPO, cuando, dinero, n, plural, tamano } from '../formato'
 import { useYo } from '../sesion'
 import { useTrabajo } from '../trabajo'
-import type { Resumen, ResumenExistencias, ResumenMiniaturas, ResumenPlacas, ResumenTaller, Trabajo } from '../tipos'
+import type { Resumen, ResumenExistencias, ResumenMiniaturas, ResumenPlacas, ResumenTaller, ResumenVentas, Trabajo } from '../tipos'
 
 function Miniaturas() {
   const qc = useQueryClient()
@@ -146,6 +146,32 @@ function Existencias() {
   )
 }
 
+function Ventas() {
+  const r = useQuery({ queryKey: ['ventas-resumen', '30'], queryFn: () => api<ResumenVentas>('/ventas/resumen?dias=30') })
+  const d = r.data
+  if (!d) return null
+  return (
+    <Card withBorder>
+      <Group justify="space-between" align="flex-start">
+        <div>
+          <Text fw={500}>Ventas</Text>
+          <Text size="sm" c="dimmed">
+            {plural(d.abiertos, 'pedido abierto', 'pedidos abiertos')}
+            {d.atrasados ? ` (${n(d.atrasados)} atrasados)` : ''}
+            {d.por_cobrar > 0 ? ` · ${dinero(d.por_cobrar)} por cobrar` : ''}
+          </Text>
+          <Text size="xs" c="dimmed">
+            Últimos 30 días: {dinero(d.ingresos)} vendidos, {dinero(d.ganancia)} de ganancia
+          </Text>
+        </div>
+        <Button variant="light" component={Link} to="/ventas">
+          Ver
+        </Button>
+      </Group>
+    </Card>
+  )
+}
+
 function Dato({ titulo, valor, detalle }: { titulo: string; valor: string; detalle?: string }) {
   return (
     <Card withBorder padding="md">
@@ -262,6 +288,7 @@ export default function Inicio() {
       <Placas />
       <Taller />
       <Existencias />
+      <Ventas />
 
       <SimpleGrid cols={{ base: 1, md: 2 }}>
         <Card withBorder>

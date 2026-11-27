@@ -5,7 +5,9 @@ import { Navigate, Route, Routes, useLocation } from 'react-router'
 import Marco from './componentes/Marco'
 import Catalogo from './paginas/Catalogo'
 import Etiquetas from './paginas/Etiquetas'
+import Coleccion from './paginas/Coleccion'
 import Existencias from './paginas/Existencias'
+import HojaColeccion from './paginas/HojaColeccion'
 import Importar from './paginas/Importar'
 import Impresora from './paginas/Impresora'
 import Inicio from './paginas/Inicio'
@@ -13,10 +15,12 @@ import Login from './paginas/Login'
 import Modelo from './paginas/Modelo'
 import Mudanza from './paginas/Mudanza'
 import Mudanzas from './paginas/Mudanzas'
+import Pedido from './paginas/Pedido'
 import Perfil from './paginas/Perfil'
 import Placa from './paginas/Placa'
 import Placas from './paginas/Placas'
 import Taller from './paginas/Taller'
+import Ventas from './paginas/Ventas'
 import { useYo } from './sesion'
 
 function ConSesion({ children }: { children: ReactNode }) {
@@ -38,6 +42,14 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route
+        path="/hoja/coleccion/:id"
+        element={
+          <ConSesion>
+            <HojaColeccion />
+          </ConSesion>
+        }
+      />
+      <Route
         element={
           <ConSesion>
             <Marco />
@@ -57,6 +69,9 @@ export default function App() {
         <Route path="impresoras/:id" element={<Impresora />} />
         <Route path="perfiles/:id" element={<Perfil />} />
         <Route path="existencias" element={<Existencias />} />
+        <Route path="ventas" element={<Ventas />} />
+        <Route path="ventas/pedidos/:id" element={<Pedido />} />
+        <Route path="ventas/colecciones/:id" element={<Coleccion />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

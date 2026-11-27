@@ -43,19 +43,19 @@ pub fn rutas() -> Router<AppState> {
         .route("/modelos/{id}/existencias", get(del_modelo))
 }
 
-fn doble_f<'de, D: Deserializer<'de>>(d: D) -> Result<Option<Option<f64>>, D::Error> {
+pub(crate) fn doble_f<'de, D: Deserializer<'de>>(d: D) -> Result<Option<Option<f64>>, D::Error> {
     Option::<f64>::deserialize(d).map(Some)
 }
 
-fn doble_i<'de, D: Deserializer<'de>>(d: D) -> Result<Option<Option<i64>>, D::Error> {
+pub(crate) fn doble_i<'de, D: Deserializer<'de>>(d: D) -> Result<Option<Option<i64>>, D::Error> {
     Option::<i64>::deserialize(d).map(Some)
 }
 
-fn como_json<T: Serialize>(x: &T) -> Value {
+pub(crate) fn como_json<T: Serialize>(x: &T) -> Value {
     serde_json::to_value(x).unwrap_or(Value::Null)
 }
 
-fn acabado_valido(a: &str) -> Result<(), ApiError> {
+pub(crate) fn acabado_valido(a: &str) -> Result<(), ApiError> {
     if ACABADOS.contains(&a) {
         Ok(())
     } else {
@@ -71,7 +71,7 @@ fn ubicacion_valida(u: &str) -> Result<String, ApiError> {
     Ok(u.to_string())
 }
 
-fn notas_validas(n: &Option<String>) -> Result<String, ApiError> {
+pub(crate) fn notas_validas(n: &Option<String>) -> Result<String, ApiError> {
     let n = n.as_deref().unwrap_or("").trim();
     if n.chars().count() > 2000 {
         return Err(ApiError::Invalido("Las notas pasan de 2,000 letras".into()));
@@ -237,7 +237,9 @@ fn costear(
             tiempo_s,
         },
     );
-    let unitario = (piezas > 0).then(|| (d.total / piezas as f64 * 100.0).round() / 100.0);
+    let sabido = d.material.is_some() || d.luz.is_some() || d.limpieza.is_some();
+    let unitario =
+        (piezas > 0 && sabido).then(|| (d.total / piezas as f64 * 100.0).round() / 100.0);
     let precio = costos::precio_sugerido(a, unitario, "sin_pintar");
     (d, unitario, precio)
 }
@@ -424,6 +426,21 @@ async fn propuesta(
         tiempo,
         n_piezas,
     );
+    // pedidos abiertos a los que les faltan miniaturas de los modelos de esta placa
+    let pedidos: Vec<(i64, String, i64)> = sqlx::query_as(
+        "SELECT p.id, coalesce(c.nombre, '') AS cliente,
+                sum(pp.cantidad - coalesce((SELECT -sum(mv.delta) FROM movimientos mv
+                                            WHERE mv.pedido_pieza_id = pp.id), 0)) AS faltan
+         FROM pedidos p LEFT JOIN clientes c ON c.id = p.cliente_id
+         JOIN pedido_piezas pp ON pp.pedido_id = p.id
+         WHERE p.estado NOT IN ('entregado', 'cancelado')
+           AND pp.modelo_id IN (SELECT modelo_id FROM placa_modelos WHERE placa_id = ? AND estado <> 'rechazado')
+         GROUP BY p.id HAVING faltan > 0
+         ORDER BY p.fecha_entrega IS NULL, p.fecha_entrega, p.id",
+    )
+    .bind(id)
+    .fetch_all(p)
+    .await?;
     let ubicaciones: Vec<String> = sqlx::query_scalar(
         "SELECT DISTINCT ubicacion FROM existencias WHERE ubicacion <> '' ORDER BY ubicacion",
     )
@@ -444,6 +461,7 @@ async fn propuesta(
             "modelo_id": mid, "nombre": n, "faccion": f, "carpeta": c, "cantidad": cant, "estado": estado
         })).collect::<Vec<_>>(),
         "ubicaciones": ubicaciones,
+        "pedidos": pedidos.iter().map(|(i, c, f)| json!({ "id": i, "cliente": c, "faltan": f })).collect::<Vec<_>>(),
         "estimado": { "desglose": d, "costo_unitario": unitario, "precio": precio, "piezas": n_piezas },
     })))
 }
@@ -475,10 +493,12 @@ struct NuevaImpresion {
     notas: Option<String>,
     /// descontar el consumo de lo que queda del material (si se lleva la cuenta)
     descontar_material: Option<bool>,
+    /// la impresión se hizo para este pedido: lo que sale se aparta para sus piezas
+    pedido_id: Option<i64>,
 }
 
 /// La existencia de ese modelo, acabado y lugar (se crea si no está).
-async fn existencia_de(
+pub(crate) async fn existencia_de(
     tx: &mut SqliteConnection,
     modelo: i64,
     acabado: &str,
@@ -526,7 +546,10 @@ async fn movimiento(
     .await
 }
 
-async fn cantidad(tx: &mut SqliteConnection, existencia: i64) -> Result<i64, sqlx::Error> {
+pub(crate) async fn cantidad(
+    tx: &mut SqliteConnection,
+    existencia: i64,
+) -> Result<i64, sqlx::Error> {
     sqlx::query_scalar("SELECT coalesce(sum(delta), 0) FROM movimientos WHERE existencia_id = ?")
         .bind(existencia)
         .fetch_one(&mut *tx)
@@ -622,6 +645,19 @@ async fn registrar(
             "Si falló toda, no salieron miniaturas: usa «parcial» si algunas sí".into(),
         ));
     }
+    if let Some(pe) = n.pedido_id {
+        let estado: Option<String> = sqlx::query_scalar("SELECT estado FROM pedidos WHERE id = ?")
+            .bind(pe)
+            .fetch_optional(p)
+            .await?;
+        match estado.as_deref() {
+            None => return Err(ApiError::Invalido("Ese pedido no existe".into())),
+            Some("entregado" | "cancelado") => {
+                return Err(ApiError::Invalido("Ese pedido ya está cerrado".into()));
+            }
+            _ => {}
+        }
+    }
     let total_piezas: i64 = piezas.iter().map(|x| x.1).sum();
     let unidad = unidad_de(&n.unidad, mat.as_ref(), tecnologia.as_deref());
     let a = Ajustes::cargar(p).await?;
@@ -657,8 +693,8 @@ async fn registrar(
     let id: i64 = sqlx::query_scalar(
         "INSERT INTO impresiones (placa_id, placa_nombre, impresora_id, material_id, perfil_id, perfil_version, fecha,
             resultado, consumo, unidad, consumo_origen, tiempo_s, costo_material, costo_luz, costo_limpieza,
-            costo_fallas, costo_total, piezas, material_descontado, notas, usuario, creada)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
+            costo_fallas, costo_total, piezas, material_descontado, notas, usuario, creada, pedido_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
     )
     .bind(n.placa_id)
     .bind(placa.as_ref().map(|x| x.0.clone()).unwrap_or_default())
@@ -682,6 +718,7 @@ async fn registrar(
     .bind(&notas)
     .bind(&u.nombre)
     .bind(ahora())
+    .bind(n.pedido_id)
     .fetch_one(&mut *tx)
     .await?;
     for (modelo, cant, acabado, ubicacion) in &piezas {
@@ -698,6 +735,10 @@ async fn registrar(
         )
         .await?;
     }
+    let apartadas = match n.pedido_id {
+        Some(pe) => super::ventas::apartar_impresas(&mut tx, pe, id, &u.nombre).await?,
+        None => 0,
+    };
     // la primera impresión dice si la placa funciona
     if let (Some(pl), Some((_, estado))) = (n.placa_id, &placa)
         && estado == "sin_probar"
@@ -717,7 +758,8 @@ async fn registrar(
     Ok((
         StatusCode::CREATED,
         Json(
-            json!({ "id": id, "desglose": d, "costo_unitario": unitario, "piezas": total_piezas }),
+            json!({ "id": id, "desglose": d, "costo_unitario": unitario, "piezas": total_piezas,
+                    "apartadas": apartadas }),
         ),
     ))
 }
@@ -771,6 +813,7 @@ async fn deshacer(
 #[derive(Debug, Default, Deserialize)]
 struct FiltrosImpresiones {
     placa_id: Option<i64>,
+    pedido_id: Option<i64>,
     modelo_id: Option<i64>,
     impresora_id: Option<i64>,
     resultado: Option<String>,
@@ -805,13 +848,14 @@ struct FilaImpresion {
     material_descontado: Option<f64>,
     notas: String,
     usuario: String,
+    pedido_id: Option<i64>,
 }
 
 const SELECT_IMPRESION: &str = "SELECT x.id, x.placa_id, coalesce(pl.nombre, x.placa_nombre) AS placa, x.impresora_id,
         i.nombre AS impresora, x.material_id, trim(m.marca || ' ' || m.nombre) AS material, x.perfil_id,
         pf.nombre AS perfil, x.perfil_version, x.fecha, x.resultado, x.consumo, x.unidad, x.consumo_origen,
         x.tiempo_s, x.costo_material, x.costo_luz, x.costo_limpieza, x.costo_fallas, x.costo_total, x.piezas,
-        x.material_descontado, x.notas, x.usuario
+        x.material_descontado, x.notas, x.usuario, x.pedido_id
     FROM impresiones x LEFT JOIN placas pl ON pl.id = x.placa_id LEFT JOIN impresoras i ON i.id = x.impresora_id
     LEFT JOIN materiales m ON m.id = x.material_id LEFT JOIN perfiles pf ON pf.id = x.perfil_id";
 
@@ -851,6 +895,9 @@ async fn listar_impresiones(pool: &SqlitePool, f: &FiltrosImpresiones) -> Result
         qb.push(" WHERE 1 = 1");
         if let Some(pl) = f.placa_id {
             qb.push(" AND x.placa_id = ").push_bind(pl);
+        }
+        if let Some(pe) = f.pedido_id {
+            qb.push(" AND x.pedido_id = ").push_bind(pe);
         }
         if let Some(i) = f.impresora_id {
             qb.push(" AND x.impresora_id = ").push_bind(i);
@@ -975,7 +1022,10 @@ fn select_existencias() -> String {
     )
 }
 
-async fn portadas(pool: &SqlitePool, ids: &[i64]) -> Result<HashMap<i64, String>, sqlx::Error> {
+pub(crate) async fn portadas(
+    pool: &SqlitePool,
+    ids: &[i64],
+) -> Result<HashMap<i64, String>, sqlx::Error> {
     if ids.is_empty() {
         return Ok(HashMap::new());
     }
@@ -1126,8 +1176,8 @@ async fn resumen(_u: Usuario, State(st): State<AppState>) -> Result<Json<Value>,
         "piezas": todas.iter().filter_map(|v| v["cantidad"].as_i64()).sum::<i64>(),
         "existencias": todas.len(),
         "modelos": modelos,
-        "valor_costo": (suma("valor_costo") * 100.0).round() / 100.0,
-        "valor_venta": suma("valor_venta"),
+        "valor_costo": (suma("valor_costo") * 100.0).round() / 100.0 + 0.0,
+        "valor_venta": suma("valor_venta") + 0.0,
         "sin_precio": todas.iter().filter(|v| v["precio_venta"].is_null()).count(),
         "bajo_minimo": bajo,
         "ubicaciones": por_lugar.iter().map(|(u, n)| json!({ "ubicacion": u, "piezas": n })).collect::<Vec<_>>(),

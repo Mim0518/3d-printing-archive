@@ -171,7 +171,8 @@ impl Ajustes {
 }
 
 fn centavos(x: f64) -> f64 {
-    (x * 100.0).round() / 100.0
+    // + 0.0: sin «-0» (la suma de nada en f64 da -0.0)
+    (x * 100.0).round() / 100.0 + 0.0
 }
 
 /// Lo que se necesita del material para costear.
@@ -366,6 +367,44 @@ pub fn precio_sugerido(a: &Ajustes, costo: Option<f64>, acabado: &str) -> Precio
         sugerido,
         faltan,
     }
+}
+
+/// Costo promedio de las miniaturas de un modelo (sus entradas por impresión o capturadas a mano).
+pub async fn costo_de_modelo(pool: &SqlitePool, modelo: i64) -> Result<Option<f64>, sqlx::Error> {
+    let c: Option<f64> = sqlx::query_scalar(
+        "SELECT sum(mv.delta * mv.costo_unitario) / sum(mv.delta) FROM movimientos mv
+         JOIN existencias e ON e.id = mv.existencia_id
+         WHERE e.modelo_id = ? AND mv.delta > 0 AND mv.motivo IN ('impresion', 'ajuste')
+           AND mv.costo_unitario IS NOT NULL",
+    )
+    .bind(modelo)
+    .fetch_one(pool)
+    .await?;
+    Ok(c.map(centavos))
+}
+
+/// Precio de venta de una miniatura de ese modelo y acabado: el puesto a mano en una de sus existencias o, si
+/// no hay, el sugerido con su costo promedio. Devuelve también el costo.
+pub async fn precio_de(
+    pool: &SqlitePool,
+    a: &Ajustes,
+    modelo: i64,
+    acabado: &str,
+) -> Result<(Option<f64>, Option<f64>), sqlx::Error> {
+    let manual: Option<f64> = sqlx::query_scalar(
+        "SELECT precio FROM existencias WHERE modelo_id = ? AND acabado = ? AND precio IS NOT NULL
+         ORDER BY actualizada DESC LIMIT 1",
+    )
+    .bind(modelo)
+    .bind(acabado)
+    .fetch_optional(pool)
+    .await?
+    .flatten();
+    let costo = costo_de_modelo(pool, modelo).await?;
+    Ok((
+        manual.or(precio_sugerido(a, costo, acabado).sugerido),
+        costo,
+    ))
 }
 
 /// Cantidad de una existencia `e`: la suma de sus movimientos.
