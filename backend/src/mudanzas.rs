@@ -96,6 +96,14 @@ async fn raiz_principal(pool: &SqlitePool) -> Result<(i64, PathBuf), ApiError> {
     Ok((id, PathBuf::from(ruta)))
 }
 
+/// ¿Un modelo que va a `destino` choca con la carpeta `o` de otro? Una fila de sueltos solo ocupa los archivos
+/// sueltos de su carpeta: se puede mover algo a una subcarpeta suya, pero no a esa misma carpeta ni a una de arriba.
+pub fn choca(o: &str, sueltos: bool, destino: &str) -> bool {
+    o == destino
+        || o.starts_with(&format!("{destino}/"))
+        || (!sueltos && destino.starts_with(&format!("{o}/")))
+}
+
 /// Arma el plan para los modelos indicados (o para todos los pendientes ya revisados) y lo guarda.
 pub async fn armar(
     pool: &SqlitePool,
@@ -134,7 +142,8 @@ pub async fn armar(
     let mut res = ResumenPlan::default();
     let mut items: Vec<Item> = Vec::new();
     // carpetas que quedan ocupadas: las de los modelos que no se mueven y los destinos de los que sí
-    let mut ocupadas: Vec<(String, String)> = todos
+    // (carpeta, nombre, ¿solo los sueltos de la carpeta?)
+    let mut ocupadas: Vec<(String, String, bool)> = todos
         .iter()
         .filter(|o| !moviendo.contains(&o.id))
         .map(|o| {
@@ -144,6 +153,7 @@ pub async fn armar(
                     .unwrap_or(&o.carpeta)
                     .to_string(),
                 o.nombre.clone(),
+                o.carpeta.ends_with(SUELTOS),
             )
         })
         .collect();
@@ -160,14 +170,14 @@ pub async fn armar(
                 .push(format!("«{nombre}»: la ruta nueva no es válida ({e})"));
             continue;
         }
-        for (o, onombre) in &ocupadas {
-            if *o == j || o.starts_with(&format!("{j}/")) || j.starts_with(&format!("{o}/")) {
+        for (o, onombre, sueltos) in &ocupadas {
+            if choca(o, *sueltos, &j) {
                 res.conflictos.push(format!(
                     "«{nombre}» iría a «{j}», que choca con la carpeta de «{onombre}» ({o})"
                 ));
             }
         }
-        ocupadas.push((j.clone(), nombre.clone()));
+        ocupadas.push((j.clone(), nombre.clone(), false));
         let mut mp = ModeloPlan {
             id: m.id,
             nombre: nombre.clone(),
@@ -206,11 +216,21 @@ pub async fn armar(
         res.modelos.push(mp);
     }
 
-    // choques archivo por archivo
+    choques(&items, &archivos, &mut res);
+    guardar(pool, &mut res, &items, true, usuario).await?;
+    Ok(res)
+}
+
+/// Choques archivo por archivo (también por mayúsculas), rutas largas y avisos.
+fn choques(
+    items: &[Item],
+    archivos: &[(i64, String, i64, i64, Option<i64>)],
+    res: &mut ResumenPlan,
+) {
     let origenes: HashSet<String> = items.iter().map(|i| i.origen.to_lowercase()).collect();
     let existentes: HashSet<String> = archivos.iter().map(|a| a.1.to_lowercase()).collect();
     let mut vistos: HashMap<String, &str> = HashMap::new();
-    for i in &items {
+    for i in items {
         let d = i.destino.to_lowercase();
         if !relativa_segura(&i.destino) || !relativa_segura(&i.origen) {
             res.conflictos
@@ -258,7 +278,16 @@ pub async fn armar(
     }
     res.conflictos.sort();
     res.conflictos.dedup();
+}
 
+/// Guarda el plan (y descarta el anterior). Con `cambian`, los modelos del plan cambian de carpeta al ejecutarlo.
+async fn guardar(
+    pool: &SqlitePool,
+    res: &mut ResumenPlan,
+    items: &[Item],
+    cambian: bool,
+    usuario: &str,
+) -> Result<(), ApiError> {
     let mut tx = pool.begin().await?;
     sqlx::query("UPDATE mudanzas SET estado = 'descartada' WHERE estado = 'plan'")
         .execute(&mut *tx)
@@ -270,7 +299,7 @@ pub async fn armar(
     .bind(ahora())
     .fetch_one(&mut *tx)
     .await?;
-    for m in &res.modelos {
+    for m in res.modelos.iter().filter(|_| cambian) {
         sqlx::query(
             "INSERT INTO mudanza_modelos (mudanza_id, modelo_id, carpeta_antes, carpeta_despues) VALUES (?, ?, ?, ?)",
         )
@@ -281,7 +310,7 @@ pub async fn armar(
         .execute(&mut *tx)
         .await?;
     }
-    for i in &items {
+    for i in items {
         sqlx::query(
             "INSERT INTO mudanza_archivos (mudanza_id, archivo_id, modelo_id, origen, destino, bytes, inode)
              VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -303,6 +332,118 @@ pub async fn armar(
         .execute(&mut *tx)
         .await?;
     tx.commit().await?;
+    Ok(())
+}
+
+/// Plan para juntar archivos que no son de ningún modelo (un grupo de la bandeja, `clave`) con un modelo que ya
+/// está en su lugar: van a `destino` (la carpeta del modelo o una subcarpeta suya) y el modelo no cambia de carpeta.
+pub async fn armar_juntar(
+    pool: &SqlitePool,
+    modelo: i64,
+    archivo_ids: &[i64],
+    clave: &str,
+    destino: &str,
+    usuario: &str,
+) -> Result<ResumenPlan, ApiError> {
+    let (bib, _) = raiz_principal(pool).await?;
+    let m = edicion::campos(pool, modelo)
+        .await?
+        .ok_or(ApiError::NoEncontrado)?;
+    let archivos: Vec<(i64, String, i64, i64, Option<i64>)> = sqlx::query_as(
+        "SELECT id, ruta, bytes, inode, modelo_id FROM archivos WHERE biblioteca_id = ? AND estado = 'presente'",
+    )
+    .bind(bib)
+    .fetch_all(pool)
+    .await?;
+    let rutas: HashSet<&str> = archivos.iter().map(|a| a.1.as_str()).collect();
+    let base = m.carpeta.as_str();
+    if base.ends_with(SUELTOS) || rutas.contains(base) || edicion::esta_pendiente(&m) {
+        return Err(ApiError::Invalido(format!(
+            "«{}» no tiene una carpeta propia en su lugar; no se le pueden juntar archivos",
+            m.nombre
+        )));
+    }
+    if destino != base && !destino.starts_with(&format!("{base}/")) {
+        return Err(ApiError::Invalido(format!(
+            "«{destino}» no está dentro de la carpeta de «{}»",
+            m.nombre
+        )));
+    }
+    let mut res = ResumenPlan::default();
+    let nombre = if m.nombre.is_empty() {
+        m.faccion.clone()
+    } else {
+        m.nombre.clone()
+    };
+    if let Err(e) = destino
+        .split('/')
+        .try_for_each(|s| edicion::validar("nombre", s))
+    {
+        res.conflictos
+            .push(format!("la carpeta destino no es válida ({e})"));
+    }
+    let otros: Vec<(String, String)> =
+        sqlx::query_as("SELECT carpeta, nombre FROM modelos WHERE id <> ?")
+            .bind(modelo)
+            .fetch_all(pool)
+            .await?;
+    for (o, onombre) in &otros {
+        let sueltos = o.ends_with(SUELTOS);
+        let o = o.strip_suffix(SUELTOS).unwrap_or(o);
+        // un modelo que ya contiene al de destino no estorba
+        if base.starts_with(&format!("{o}/")) {
+            continue;
+        }
+        if choca(o, sueltos, destino) {
+            res.conflictos.push(format!(
+                "«{destino}» choca con la carpeta de «{onombre}» ({o})"
+            ));
+        }
+    }
+    let ids: HashSet<i64> = archivo_ids.iter().copied().collect();
+    let del_grupo: Vec<&(i64, String, i64, i64, Option<i64>)> = archivos
+        .iter()
+        .filter(|a| ids.contains(&a.0) && a.4.is_none())
+        .collect();
+    if del_grupo.len() != ids.len() {
+        return Err(ApiError::Conflicto(
+            "los archivos del grupo cambiaron; vuelve a cargar la bandeja".into(),
+        ));
+    }
+    let mut items = Vec::new();
+    let mut mp = ModeloPlan {
+        id: m.id,
+        nombre,
+        de: clave.to_string(),
+        a: destino.to_string(),
+        archivos: 0,
+        bytes: 0,
+    };
+    let k = clave.strip_suffix(SUELTOS).unwrap_or(clave);
+    for (aid, ruta, bytes, inode, _) in del_grupo {
+        let nombre_archivo = ruta.rsplit('/').next().unwrap_or(ruta);
+        let rel = if clave.ends_with(SUELTOS) || ruta == clave {
+            nombre_archivo
+        } else {
+            ruta.strip_prefix(&format!("{k}/"))
+                .unwrap_or(nombre_archivo)
+        };
+        mp.archivos += 1;
+        mp.bytes += bytes;
+        items.push(Item {
+            archivo_id: *aid,
+            modelo_id: m.id,
+            origen: ruta.clone(),
+            destino: format!("{destino}/{rel}"),
+            bytes: *bytes,
+            inode: *inode,
+        });
+    }
+    res.archivos = mp.archivos;
+    res.bytes = mp.bytes;
+    res.modelos.push(mp);
+    choques(&items, &archivos, &mut res);
+    guardar(pool, &mut res, &items, false, usuario).await?;
     Ok(res)
 }
 

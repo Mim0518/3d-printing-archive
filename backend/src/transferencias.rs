@@ -298,9 +298,36 @@ pub async fn nueva_transferencia(
     quitar_local: bool,
     usuario: &str,
 ) -> anyhow::Result<i64> {
+    nueva_transferencia_de(
+        pool,
+        modelo,
+        ubicacion,
+        direccion,
+        quitar_local,
+        usuario,
+        &[],
+    )
+    .await
+}
+
+/// Como `nueva_transferencia`, pero solo con esos archivos del modelo (vacío = todos).
+pub async fn nueva_transferencia_de(
+    pool: &SqlitePool,
+    modelo: i64,
+    ubicacion: i64,
+    direccion: &str,
+    quitar_local: bool,
+    usuario: &str,
+    solo: &[i64],
+) -> anyhow::Result<i64> {
+    let solo = if solo.is_empty() {
+        String::new()
+    } else {
+        serde_json::to_string(solo)?
+    };
     Ok(sqlx::query_scalar(
-        "INSERT INTO transferencias (modelo_id, ubicacion_id, direccion, quitar_local, usuario, creada)
-         VALUES (?, ?, ?, ?, ?, ?) RETURNING id",
+        "INSERT INTO transferencias (modelo_id, ubicacion_id, direccion, quitar_local, usuario, creada, solo_archivos)
+         VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id",
     )
     .bind(modelo)
     .bind(ubicacion)
@@ -308,6 +335,7 @@ pub async fn nueva_transferencia(
     .bind(quitar_local)
     .bind(usuario)
     .bind(ahora())
+    .bind(solo)
     .fetch_one(pool)
     .await?)
 }
@@ -376,12 +404,18 @@ pub async fn subir(
     transferencia: i64,
     progreso: Arc<AtomicU64>,
 ) -> anyhow::Result<ResultadoSubir> {
-    let (modelo, ubicacion, quitar, usuario): (i64, i64, bool, String) = sqlx::query_as(
-        "SELECT modelo_id, ubicacion_id, quitar_local, usuario FROM transferencias WHERE id = ?",
+    let (modelo, ubicacion, quitar, usuario, solo): (i64, i64, bool, String, String) = sqlx::query_as(
+        "SELECT modelo_id, ubicacion_id, quitar_local, usuario, solo_archivos FROM transferencias WHERE id = ?",
     )
     .bind(transferencia)
     .fetch_one(pool)
     .await?;
+    // solo_archivos: una lista JSON de ids de archivo; vacía = todo el modelo
+    let solo: Vec<i64> = if solo.is_empty() {
+        Vec::new()
+    } else {
+        serde_json::from_str(&solo).context("solo_archivos no es una lista de ids")?
+    };
     let r = subir_interno(
         pool,
         rclone,
@@ -390,6 +424,7 @@ pub async fn subir(
         ubicacion,
         quitar,
         &usuario,
+        &solo,
         progreso,
     )
     .await;
@@ -408,6 +443,7 @@ async fn subir_interno(
     ubicacion: i64,
     quitar: bool,
     usuario: &str,
+    solo: &[i64],
     progreso: Arc<AtomicU64>,
 ) -> anyhow::Result<ResultadoSubir> {
     let u = Ubicacion::cargar(pool, ubicacion)
@@ -415,7 +451,10 @@ async fn subir_interno(
         .context("no existe esa ubicación")?;
     let alm = u.abrir(rclone)?;
     let (biblioteca, raiz) = principal(pool).await?;
-    let lista = locales(pool, modelo).await?;
+    let mut lista = locales(pool, modelo).await?;
+    if !solo.is_empty() {
+        lista.retain(|l| solo.contains(&l.id));
+    }
     if lista.is_empty() {
         bail!("el modelo no tiene archivos en el disco");
     }
@@ -983,17 +1022,70 @@ fn es_comprimido(ruta: &str) -> Option<&'static str> {
 
 /// Extrae un zip comprobando el CRC de cada entrada (al leerla completa). No deja salir de `destino`.
 fn extraer_zip(zip: &Path, destino: &Path) -> Result<usize, String> {
+    extraer_zip_en(zip, destino, false).map(|(n, _)| n)
+}
+
+/// Como `extraer_zip`, pero devuelve también los bytes escritos. Con `quitar_raiz`, si todo el contenido viene
+/// dentro de una sola carpeta («Pack/…»), la quita, y se salta la basura de macOS (`__MACOSX`, `.DS_Store`).
+pub(crate) fn extraer_zip_en(
+    zip: &Path,
+    destino: &Path,
+    quitar_raiz: bool,
+) -> Result<(usize, u64), String> {
     let f = std::fs::File::open(zip).map_err(|e| e.to_string())?;
     let mut z = zip::ZipArchive::new(f).map_err(|e| format!("no es un zip válido: {e}"))?;
+    let basura = |rel: &Path| {
+        rel.components().any(|c| {
+            let c = c.as_os_str();
+            c == "__MACOSX" || c == ".DS_Store"
+        })
+    };
+    // la carpeta común a todos los archivos, si la hay
+    let mut raiz: Option<Option<std::ffi::OsString>> = None;
+    if quitar_raiz {
+        for i in 0..z.len() {
+            let e = z.by_index_raw(i).map_err(|e| e.to_string())?;
+            let Some(rel) = e.enclosed_name() else {
+                continue;
+            };
+            if basura(&rel) || e.is_dir() {
+                continue;
+            }
+            let mut comps = rel.components();
+            let primero = comps.next().map(|c| c.as_os_str().to_os_string());
+            // un archivo suelto en la raíz: no hay carpeta común
+            let comun = if comps.next().is_some() {
+                primero
+            } else {
+                None
+            };
+            raiz = match raiz {
+                None => Some(comun),
+                Some(Some(r)) if comun.as_ref() == Some(&r) => Some(Some(r)),
+                _ => Some(None),
+            };
+        }
+    }
+    let quitar = raiz.flatten();
     let mut n = 0;
+    let mut bytes = 0u64;
     for i in 0..z.len() {
         let mut e = z.by_index(i).map_err(|e| e.to_string())?;
-        let Some(rel) = e.enclosed_name() else {
+        let Some(mut rel) = e.enclosed_name() else {
             return Err(format!(
                 "entrada con ruta peligrosa: {}",
                 e.name().map(|n| n.to_string()).unwrap_or_default()
             ));
         };
+        if quitar_raiz && basura(&rel) {
+            continue;
+        }
+        if let Some(r) = &quitar {
+            match rel.strip_prefix(r) {
+                Ok(resto) if !resto.as_os_str().is_empty() => rel = resto.to_path_buf(),
+                _ => continue,
+            }
+        }
         let fin = destino.join(rel);
         if e.is_dir() {
             std::fs::create_dir_all(&fin).map_err(|e| e.to_string())?;
@@ -1002,10 +1094,11 @@ fn extraer_zip(zip: &Path, destino: &Path) -> Result<usize, String> {
         std::fs::create_dir_all(fin.parent().expect("tiene carpeta")).map_err(|e| e.to_string())?;
         let mut out = std::fs::File::create(&fin).map_err(|e| e.to_string())?;
         // io::copy lee hasta el final: el zip comprueba el CRC ahí y falla si no cuadra
-        std::io::copy(&mut e, &mut out).map_err(|err| format!("{}: {err}", fin.display()))?;
+        bytes +=
+            std::io::copy(&mut e, &mut out).map_err(|err| format!("{}: {err}", fin.display()))?;
         n += 1;
     }
-    Ok(n)
+    Ok((n, bytes))
 }
 
 /// Trae de una ubicación las copias de un modelo (todas o las elegidas) a su carpeta, comprobando el MD5 de cada

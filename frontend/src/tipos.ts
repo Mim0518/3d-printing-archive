@@ -933,3 +933,72 @@ export interface ResumenFrio {
   en_curso: { id: number; tipo: string; detalle: string } | null
   frase_vaciar: string
 }
+
+// ---------- bandeja «Por catalogar» ----------
+
+export interface PropuestaBandeja {
+  juego: string
+  faccion: string
+  nombre: string
+  estudio: string
+  subcarpeta: string
+  confianza: 'alta' | 'media' | 'baja' | ''
+  porque: string[]
+}
+
+export interface ComprimidoBandeja {
+  id: number
+  ruta: string
+  nombre: string
+  bytes: number
+  extraido_en: string | null
+  se_puede_extraer: boolean
+}
+
+export interface GrupoBandeja {
+  clave: string
+  seccion: 'por_catalogar' | 'nueva'
+  archivos: number
+  mallas: number
+  bytes: number
+  ejemplo: string
+  portada: { id: number; clave: string } | null
+  comprimidos: ComprimidoBandeja[]
+  propuesta: PropuestaBandeja
+  ruta_nueva: string
+  descartado: boolean
+}
+
+export interface Bandeja {
+  entrada: string
+  existe_entrada: boolean
+  grupos: GrupoBandeja[]
+  descartados: number
+  destino_frio: { id: number; nombre: string } | null
+}
+
+export interface DetalleGrupoBandeja {
+  grupo: GrupoBandeja
+  archivos: { id: number; ruta: string; nombre: string; tipo: string; bytes: number; miniatura: string | null }[]
+  contenidos: Record<string, { entradas?: number; bytes?: number; nombres?: string[]; error?: string }>
+}
+
+export interface RevisionBandeja {
+  ruta_nueva: string
+  se_mueve: boolean
+  errores: string[]
+  choques: string[]
+  juntar: { id: number; nombre: string; carpeta: string }[]
+}
+
+export interface AprobadoBandeja {
+  estado: 'listo' | 'mover' | 'conflictos'
+  modelo_id: number | null
+  mudanza_id: number | null
+  transferencia_id: number | null
+  ubicacion: string | null
+  archivos: number
+  conflictos: string[]
+  avisos: string[]
+  trabajo_id?: number
+}

@@ -31,7 +31,7 @@ export function ResumenResultado({ r }: { r: ResultadoTransferencia | null | und
   const partes = [
     r.subidos != null ? `${plural(r.subidos, 'subido', 'subidos')}` : '',
     r.ya_estaban ? `${n(r.ya_estaban)} ya estaban` : '',
-    r.verificados != null ? `${n(r.verificados)} verificados por MD5` : '',
+    r.verificados != null ? `${plural(r.verificados, 'verificado', 'verificados')} por MD5` : '',
     r.traidos != null ? `${plural(r.traidos, 'traído', 'traídos')}` : '',
     r.extraidos ? `${n(r.extraidos)} extraídos de comprimidos` : '',
     r.a_papelera ? `${n(r.a_papelera)} a la papelera` : '',

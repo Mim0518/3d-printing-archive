@@ -1,6 +1,7 @@
 //! Rutas de la API (`/api/v1`).
 
 mod auth;
+mod bandeja;
 mod catalogo;
 mod edicion;
 mod existencias;
@@ -19,6 +20,7 @@ use crate::{AppState, error::ApiError};
 pub fn api() -> Router<AppState> {
     Router::new()
         .merge(auth::rutas())
+        .merge(bandeja::rutas())
         .merge(catalogo::rutas())
         .merge(edicion::rutas())
         .merge(existencias::rutas())

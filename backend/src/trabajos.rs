@@ -72,7 +72,7 @@ pub async fn marcar_interrumpidos(pool: &SqlitePool) -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn alguno_en_curso(pool: &SqlitePool) -> Result<(), ApiError> {
+pub(crate) async fn alguno_en_curso(pool: &SqlitePool) -> Result<(), ApiError> {
     let corriendo: Option<(i64, String)> =
         sqlx::query_as("SELECT id, tipo FROM trabajos WHERE estado = 'en_curso' LIMIT 1")
             .fetch_optional(pool)
@@ -309,6 +309,83 @@ pub async fn iniciar_listar(
         detalle,
         move |pool, _| async move {
             crate::transferencias::listar_ubicacion(&pool, &rclone, ubicacion).await
+        },
+    )
+    .await
+}
+
+/// Extrae un comprimido de la bandeja (y vuelve a escanear).
+pub async fn iniciar_extraer(
+    pool: SqlitePool,
+    trabajos: Arc<Trabajos>,
+    archivo: i64,
+    usuario: String,
+    detalle: String,
+) -> Result<i64, ApiError> {
+    lanzar(
+        pool,
+        trabajos,
+        "bandeja_extraer",
+        detalle,
+        move |pool, _| async move { crate::bandeja::extraer(&pool, archivo, &usuario).await },
+    )
+    .await
+}
+
+/// Lo que hizo la aprobación de un grupo de la bandeja.
+#[derive(Debug, Serialize)]
+pub struct ResultadoAprobar {
+    pub mudanza: crate::mudanzas::ResumenEjecucion,
+    pub frio: Option<crate::transferencias::ResultadoSubir>,
+    pub frio_error: Option<String>,
+}
+
+/// Mueve un grupo aprobado de la bandeja a su lugar y, si se pidió, manda sus comprimidos a frío (la
+/// transferencia ya está registrada) y los quita del disco cuando el MD5 cuadra.
+pub async fn iniciar_aprobar(
+    pool: SqlitePool,
+    trabajos: Arc<Trabajos>,
+    rclone: String,
+    mudanza: i64,
+    transferencia: Option<i64>,
+    detalle: String,
+) -> Result<i64, ApiError> {
+    lanzar(
+        pool,
+        trabajos,
+        "bandeja_aprobar",
+        detalle,
+        move |pool, progreso| async move {
+            let mudanza = match crate::mudanzas::ejecutar(&pool, mudanza, progreso.clone()).await {
+                Ok(r) => r,
+                Err(e) => {
+                    if let Some(t) = transferencia {
+                        crate::transferencias::marcar_fallo(&pool, t, "no se movió el modelo")
+                            .await;
+                    }
+                    return Err(e);
+                }
+            };
+            crate::placas::detectar(&pool).await?;
+            let mut res = ResultadoAprobar {
+                mudanza,
+                frio: None,
+                frio_error: None,
+            };
+            if let Some(t) = transferencia {
+                if res.mudanza.errores.is_empty() {
+                    progreso.store(0, Ordering::Relaxed);
+                    match crate::transferencias::subir(&pool, &rclone, t, progreso).await {
+                        Ok(r) => res.frio = Some(r),
+                        Err(e) => res.frio_error = Some(format!("{e:#}")),
+                    }
+                } else {
+                    let m = "la mudanza tuvo errores: el comprimido se quedó en el disco";
+                    crate::transferencias::marcar_fallo(&pool, t, m).await;
+                    res.frio_error = Some(m.into());
+                }
+            }
+            Ok(res)
         },
     )
     .await

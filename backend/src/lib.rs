@@ -2,6 +2,7 @@
 
 pub mod almacen;
 pub mod auth;
+pub mod bandeja;
 pub mod catalogo;
 pub mod config;
 pub mod costos;

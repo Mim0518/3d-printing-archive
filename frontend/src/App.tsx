@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router'
 
 import Marco from './componentes/Marco'
+import Bandeja from './paginas/Bandeja'
 import Catalogo from './paginas/Catalogo'
 import Etiquetas from './paginas/Etiquetas'
 import Coleccion from './paginas/Coleccion'
@@ -72,6 +73,7 @@ export default function App() {
         <Route path="existencias" element={<Existencias />} />
         <Route path="ventas" element={<Ventas />} />
         <Route path="frio" element={<Frio />} />
+        <Route path="bandeja" element={<Bandeja />} />
         <Route path="ventas/pedidos/:id" element={<Pedido />} />
         <Route path="ventas/colecciones/:id" element={<Coleccion />} />
         <Route path="*" element={<Navigate to="/" replace />} />
