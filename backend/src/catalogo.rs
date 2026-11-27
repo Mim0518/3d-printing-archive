@@ -284,8 +284,9 @@ pub async fn actualizar_estadisticas(pool: &SqlitePool) -> anyhow::Result<()> {
             bytes = (SELECT coalesce(sum(b), 0) FROM
                         (SELECT max(a.bytes) AS b FROM archivos a
                          WHERE a.modelo_id = modelos.id AND a.estado = 'presente' GROUP BY a.inode)),
-            n_frio = (SELECT count(*) FROM copias_frio c WHERE c.modelo_id = modelos.id),
-            bytes_frio = (SELECT coalesce(sum(c.bytes), 0) FROM copias_frio c WHERE c.modelo_id = modelos.id)",
+            n_frio = (SELECT count(*) FROM copias_frio c WHERE c.modelo_id = modelos.id AND c.estado = 'presente'),
+            bytes_frio = (SELECT coalesce(sum(c.bytes), 0) FROM copias_frio c
+                          WHERE c.modelo_id = modelos.id AND c.estado = 'presente')",
     )
     .execute(pool)
     .await?;

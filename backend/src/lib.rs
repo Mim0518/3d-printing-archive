@@ -1,5 +1,6 @@
 //! 3D Printing Archive: servidor (API JSON + frontend compilado).
 
+pub mod almacen;
 pub mod auth;
 pub mod catalogo;
 pub mod config;
@@ -17,6 +18,7 @@ pub mod placas;
 pub mod rutas;
 pub mod taller;
 pub mod trabajos;
+pub mod transferencias;
 
 use std::sync::Arc;
 

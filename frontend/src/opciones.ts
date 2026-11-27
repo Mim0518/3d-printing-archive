@@ -165,3 +165,20 @@ export function useRefrescarVentas() {
       void qc.invalidateQueries({ queryKey: [k] })
   }
 }
+
+export const ESTADO_FRIO: Record<string, { texto: string; color: string; ayuda: string }> = {
+  caliente: { texto: 'solo en el disco', color: 'orange', ayuda: 'No tiene copia en frío' },
+  frio: { texto: 'solo en frío', color: 'blue', ayuda: 'Sus archivos no están en el disco' },
+  ambos: { texto: 'en el disco y en frío', color: 'green', ayuda: 'Todo lo que está en frío también está en el disco' },
+  parcial: { texto: 'parte en frío', color: 'cyan', ayuda: 'Algunas copias en frío no están en el disco' },
+  sin_archivos: { texto: 'sin archivos', color: 'gray', ayuda: 'Ni en el disco ni en frío' },
+}
+
+/** Lo que cambia el frío: el modelo, sus archivos y la papelera. */
+export function useRefrescarFrio() {
+  const qc = useQueryClient()
+  return () => {
+    for (const k of ['frio-modelo', 'frio-ubicaciones', 'frio-resumen', 'transferencias', 'papelera', 'modelo', 'modelos', 'resumen'])
+      void qc.invalidateQueries({ queryKey: [k] })
+  }
+}

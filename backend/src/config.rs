@@ -24,6 +24,8 @@ pub struct Config {
     pub f3d: String,
     /// Cuántas miniaturas se generan a la vez.
     pub paralelo: usize,
+    /// Programa rclone (usa los remotos que el usuario configuró con `rclone config`).
+    pub rclone: String,
 }
 
 impl Config {
@@ -57,6 +59,7 @@ impl Config {
             .unwrap_or_else(|_| "datos/miniaturas".into())
             .into();
         let f3d = env::var("ARCHIVO_F3D").unwrap_or_else(|_| "f3d".into());
+        let rclone = env::var("ARCHIVO_RCLONE").unwrap_or_else(|_| "rclone".into());
         let nucleos = std::thread::available_parallelism()
             .map(|n| n.get())
             .unwrap_or(2);
@@ -74,6 +77,7 @@ impl Config {
             miniaturas,
             f3d,
             paralelo,
+            rclone,
         })
     }
 
@@ -90,6 +94,7 @@ impl Config {
             miniaturas: std::env::temp_dir().join(format!("pa-miniaturas-{n}")),
             f3d: "f3d".into(),
             paralelo: 2,
+            rclone: "rclone".into(),
         }
     }
 

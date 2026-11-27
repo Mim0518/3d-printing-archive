@@ -227,3 +227,89 @@ pub async fn iniciar_placas(pool: SqlitePool, trabajos: Arc<Trabajos>) -> Result
     )
     .await
 }
+
+/// Manda un modelo a frío (la transferencia ya está registrada).
+pub async fn iniciar_subir(
+    pool: SqlitePool,
+    trabajos: Arc<Trabajos>,
+    rclone: String,
+    transferencia: i64,
+    detalle: String,
+) -> Result<i64, ApiError> {
+    lanzar(
+        pool,
+        trabajos,
+        "frio_subir",
+        detalle,
+        move |pool, progreso| async move {
+            crate::transferencias::subir(&pool, &rclone, transferencia, progreso).await
+        },
+    )
+    .await
+}
+
+/// Trae un modelo (o algunas de sus copias) de frío.
+pub async fn iniciar_traer(
+    pool: SqlitePool,
+    trabajos: Arc<Trabajos>,
+    rclone: String,
+    transferencia: i64,
+    copias: Option<Vec<i64>>,
+    detalle: String,
+) -> Result<i64, ApiError> {
+    lanzar(
+        pool,
+        trabajos,
+        "frio_traer",
+        detalle,
+        move |pool, progreso| async move {
+            crate::transferencias::traer(&pool, &rclone, transferencia, copias, progreso).await
+        },
+    )
+    .await
+}
+
+/// Quita del disco lo que tiene copia verificada en una ubicación (a la papelera).
+pub async fn iniciar_quitar(
+    pool: SqlitePool,
+    trabajos: Arc<Trabajos>,
+    rclone: String,
+    modelo: i64,
+    ubicacion: i64,
+    usuario: String,
+    detalle: String,
+) -> Result<i64, ApiError> {
+    lanzar(
+        pool,
+        trabajos,
+        "frio_quitar",
+        detalle,
+        move |pool, progreso| async move {
+            crate::transferencias::quitar_local(
+                &pool, &rclone, modelo, ubicacion, &usuario, progreso,
+            )
+            .await
+        },
+    )
+    .await
+}
+
+/// Lee todo lo que hay en una ubicación y pone al día sus copias.
+pub async fn iniciar_listar(
+    pool: SqlitePool,
+    trabajos: Arc<Trabajos>,
+    rclone: String,
+    ubicacion: i64,
+    detalle: String,
+) -> Result<i64, ApiError> {
+    lanzar(
+        pool,
+        trabajos,
+        "frio_listar",
+        detalle,
+        move |pool, _| async move {
+            crate::transferencias::listar_ubicacion(&pool, &rclone, ubicacion).await
+        },
+    )
+    .await
+}

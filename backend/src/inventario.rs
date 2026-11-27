@@ -87,7 +87,15 @@ pub fn recorrer(
 ) -> (Vec<Entrada>, Vec<String>) {
     let mut out = Vec::new();
     let mut errores = Vec::new();
-    for item in WalkDir::new(raiz).follow_links(false) {
+    // la papelera y la carpeta de entrada de la app no son parte de la colección
+    let propias = |e: &walkdir::DirEntry| {
+        e.depth() == 1 && e.file_name().to_string_lossy().starts_with(".archivo-")
+    };
+    for item in WalkDir::new(raiz)
+        .follow_links(false)
+        .into_iter()
+        .filter_entry(|e| !propias(e))
+    {
         let item = match item {
             Ok(i) => i,
             Err(e) => {

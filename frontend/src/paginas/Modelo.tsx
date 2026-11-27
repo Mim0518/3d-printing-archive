@@ -27,6 +27,7 @@ import EditorModelo from '../componentes/EditorModelo'
 import Galeria from '../componentes/Galeria'
 import Miniatura from '../componentes/Miniatura'
 import ExistenciasDelModelo from '../componentes/ExistenciasDelModelo'
+import FrioDelModelo from '../componentes/FrioDelModelo'
 import PlacasDelModelo from '../componentes/PlacasDelModelo'
 import VisorModal from '../componentes/VisorModal'
 import { COLOR_TIPO, cuando, n, tamano, titulo } from '../formato'
@@ -334,49 +335,7 @@ export default function Modelo() {
         )}
       </Card>
 
-      {m.copias_frio.length > 0 && (
-        <Card withBorder>
-          <Text fw={500}>Almacenamiento frío</Text>
-          <Text size="xs" c="dimmed" mb="xs">
-            Copias guardadas fuera del disco
-          </Text>
-          <ScrollArea>
-            <Table striped miw={600}>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Dónde</Table.Th>
-                  <Table.Th>Archivo</Table.Th>
-                  <Table.Th ta="right">Tamaño</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {m.copias_frio.map((c) => (
-                  <Table.Tr key={c.id}>
-                    <Table.Td>
-                      <Badge variant="light" color="blue">
-                        {c.ubicacion}
-                      </Badge>
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="sm" style={{ wordBreak: 'break-all' }}>
-                        {c.ruta.split('/').pop()}
-                      </Text>
-                      {c.entradas > 0 && (
-                        <Text size="xs" c="dimmed">
-                          {n(c.entradas)} archivos adentro
-                        </Text>
-                      )}
-                    </Table.Td>
-                    <Table.Td ta="right">
-                      <Text size="sm">{tamano(c.bytes)}</Text>
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </ScrollArea>
-        </Card>
-      )}
+      <FrioDelModelo modeloId={m.id} />
 
       <Historial id={m.id} />
       <VisorModal archivo={viendo} cerrar={() => setViendo(null)} />

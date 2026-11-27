@@ -1247,6 +1247,7 @@ dependencies = [
  "hex",
  "http-body-util",
  "image",
+ "md-5",
  "rand",
  "rpassword",
  "serde",

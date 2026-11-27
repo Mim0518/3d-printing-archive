@@ -7,6 +7,7 @@ import Catalogo from './paginas/Catalogo'
 import Etiquetas from './paginas/Etiquetas'
 import Coleccion from './paginas/Coleccion'
 import Existencias from './paginas/Existencias'
+import Frio from './paginas/Frio'
 import HojaColeccion from './paginas/HojaColeccion'
 import Importar from './paginas/Importar'
 import Impresora from './paginas/Impresora'
@@ -70,6 +71,7 @@ export default function App() {
         <Route path="perfiles/:id" element={<Perfil />} />
         <Route path="existencias" element={<Existencias />} />
         <Route path="ventas" element={<Ventas />} />
+        <Route path="frio" element={<Frio />} />
         <Route path="ventas/pedidos/:id" element={<Pedido />} />
         <Route path="ventas/colecciones/:id" element={<Coleccion />} />
         <Route path="*" element={<Navigate to="/" replace />} />

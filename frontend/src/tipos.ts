@@ -811,3 +811,125 @@ export interface ResumenVentas {
   mas_vendidos: { modelo_id: number; nombre: string; faccion: string; juego: string; cantidad: number; ingreso: number; hay: number }[]
   facciones: { faccion: string; juego: string; cantidad: number; ingreso: number }[]
 }
+
+// ---------- fase 8: almacenamiento frío ----------
+
+export interface UbicacionFrio {
+  id: number
+  nombre: string
+  tipo: 'drive' | 'disco_externo'
+  remoto: string
+  ruta_base: string
+  escribible: boolean
+  predeterminada: boolean
+  ultimo_listado: number | null
+  copias: number
+  bytes: number
+  verificadas: number
+  faltan: number
+  modelos: number
+}
+
+export interface CopiaDelModelo {
+  id: number
+  ubicacion_id: number
+  ruta: string
+  bytes: number
+  verificado: number | null
+  estado: 'presente' | 'falta'
+  origen: 'importada' | 'app' | 'listado'
+  en_disco: boolean
+}
+
+export interface ResultadoTransferencia {
+  subidos?: number
+  ya_estaban?: number
+  verificados?: number
+  traidos?: number
+  extraidos?: number
+  a_papelera?: number
+  sin_copia?: number
+  errores?: string[]
+  conflictos?: string[]
+  no_quitados?: string[]
+  avisos?: string[]
+  apartado_en?: string | null
+  lote_papelera?: number | null
+  error?: string
+}
+
+export interface Transferencia {
+  id: number
+  modelo_id: number | null
+  modelo: string | null
+  ubicacion_id: number
+  ubicacion: string
+  direccion: 'subir' | 'traer'
+  estado: 'en_curso' | 'terminada' | 'con_errores' | 'fallo'
+  quitar_local: boolean
+  archivos: number
+  bytes: number
+  verificados: number
+  lote_id: number | null
+  trabajo_id: number | null
+  resultado: ResultadoTransferencia | null
+  usuario: string
+  creada: number
+  terminada: number | null
+}
+
+export interface EstadoFrioModelo {
+  estado: 'caliente' | 'frio' | 'ambos' | 'parcial' | 'sin_archivos'
+  disco: { archivos: number; bytes: number; compartidos: number }
+  ubicaciones: {
+    ubicacion_id: number
+    ubicacion: string
+    tipo: string
+    copias: number
+    bytes: number
+    verificadas: number
+    comprimidos: number
+    solo_en_frio: number
+  }[]
+  copias: CopiaDelModelo[]
+  transferencias: Transferencia[]
+  papelera: { id: number; motivo: string; archivos: number; bytes: number; creado: number }[]
+  destinos: { id: number; nombre: string; predeterminada: boolean }[]
+}
+
+export interface PlanSubir {
+  modelo_id: number
+  ubicacion_id: number
+  ubicacion: string
+  destino: string
+  archivos: number
+  bytes: number
+  ya_en_frio: number
+  compartidos: number
+  bytes_compartidos: number
+  avisos: string[]
+}
+
+export interface LotePapelera {
+  id: number
+  motivo: string
+  modelo_id: number | null
+  modelo: string | null
+  ubicacion_id: number | null
+  ubicacion: string | null
+  estado: 'en_papelera' | 'restaurado' | 'vaciado'
+  archivos: number
+  bytes: number
+  compartidos: number
+  usuario: string
+  creado: number
+  cerrado: number | null
+}
+
+export interface ResumenFrio {
+  modelos_solo_en_frio: number
+  modelos_en_los_dos: number
+  papelera: { lotes: number; archivos: number; bytes: number }
+  en_curso: { id: number; tipo: string; detalle: string } | null
+  frase_vaciar: string
+}
