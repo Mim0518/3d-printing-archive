@@ -3,6 +3,7 @@
 Aplicación web para archivar y administrar una colección de impresión 3D:
 
 - inventario de modelos y piezas, etiquetado y miniaturas;
+- bandeja «Por catalogar» para las descargas nuevas;
 - placas y escenas;
 - almacenamiento frío (Google Drive y disco externo);
 - impresoras y materiales;
@@ -13,18 +14,17 @@ Tecnología:
 - Backend: Rust (Axum + SQLite). Frontend: React + Vite + TypeScript (Mantine).
 - Corre en un mini PC en casa; desde fuera se entra por Tailscale.
 
-Estado: **fase 8**. Almacenamiento frío:
+Estado: **fase 9**. Bandeja «Por catalogar»:
+- lo que se deja en `Por catalogar/` (o directo en su lugar) y no es de ningún modelo aparece con su propuesta de Juego, Facción, Modelo y Estudio, su confianza y el porqué;
+- se aprueba tal cual o corregido y se mueve a su lugar con una mudanza (con deshacer), o se junta con un modelo que ya se tiene; «No mover» lo deja donde está;
+- los zip se extraen comprobando el CRC, y al aprobar el comprimido original va a frío verificado por MD5.
+
+Fase 8, almacenamiento frío:
 - mandar un modelo a Google Drive (rclone) o a un disco externo, como carpeta tal cual, con verificación por MD5 de cada archivo;
 - quitar la copia local a la papelera de la app (se restaura o se vacía, con confirmación escrita y volviendo a comprobar la copia);
 - traer un modelo (o algunas piezas) de regreso, comprobando MD5 y CRC de los zip, sin sobrescribir nada.
 
-Fase 7, ventas:
-- clientes, pedidos (cotizado → confirmado → imprimiendo → listo → entregado, o cancelado) con pagos (anticipo y saldo), descuento y envío;
-- las piezas de un pedido se apartan de las existencias o se imprimen para él (lo que sale se aparta solo); cancelar o quitar una pieza las regresa;
-- colecciones de venta con fotos, precio (la suma o uno fijo) y si alcanzan las existencias; se mandan como PDF (hoja para imprimir) o imagen para WhatsApp, y se convierten en pedido;
-- resumen de lo vendido, la ganancia, lo que falta cobrar y lo más vendido.
-
-Fases anteriores: existencias y costos de impresión con precio sugerido; impresoras, materiales y perfiles importados de Photon Workshop, Orca y Lychee; placas y escenas ligadas a sus modelos; miniaturas con f3d, portadas y visor 3D; catálogo editable con etiquetas, historial y mudanzas con deshacer. Ver la [especificación](docs/especificacion.md) y la [guía de instalación](deploy/README.md).
+Fases anteriores: ventas (clientes, pedidos con pagos, piezas apartadas de las existencias, colecciones en PDF o imagen); existencias y costos de impresión con precio sugerido; impresoras, materiales y perfiles importados de Photon Workshop, Orca y Lychee; placas y escenas ligadas a sus modelos; miniaturas con f3d, portadas y visor 3D; catálogo editable con etiquetas, historial y mudanzas con deshacer. Ver la [especificación](docs/especificacion.md) y la [guía de instalación](deploy/README.md).
 
 ## Desarrollo
 

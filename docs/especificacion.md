@@ -1,6 +1,6 @@
 # 3D Printing Archive: especificación
 
-Versión 1.1, borrador del 26 de noviembre de 2026. La app se va a construir por fases, y este documento crece con ella. Lo que todavía no está decidido está en la sección 12.
+Versión 1.2, borrador del 27 de noviembre de 2026. La app se va a construir por fases, y este documento crece con ella. Lo que todavía no está decidido está en la sección 12.
 
 ## 1. Objetivo
 
@@ -101,6 +101,25 @@ El motivo principal es el inventario para vender impresiones: hoy es difícil ll
   - listar su contenido, extraerlo comprobando el CRC y proponer el modelo;
   - el comprimido original va a almacenamiento frío, como se acordó para la colección.
 - INB-5. Detectar los modelos que se pusieron directo en su lugar y agregarlos al catálogo leyendo la ruta.
+
+Hecho en la fase 9:
+- La bandeja es todo lo que no es de ningún modelo, calculado al vuelo después de cada escaneo. Se divide en dos secciones:
+  - lo que está en `Por catalogar/`, separado en modelos con las reglas de `catalogo_modelos.py` (una carpeta «v2» cuenta como versión del modelo, como decía su descripción);
+  - las carpetas de Wargames o DND que ninguna fila cubre, con los campos leídos de la ruta. Los archivos sueltos de una carpeta de facción se proponen como fila de sueltos sin modelo, que se queda donde está.
+- Propuestas con las reglas de `catalogo_propuesta.py`. Además, si el nombre coincide con un solo modelo del catálogo y no trae estudio, se toma el estudio de ese modelo.
+- Mientras se editan los campos, la app muestra a dónde irá el grupo, los errores, los choques con otros modelos y si se puede juntar.
+- Aprobar crea la fila: «OK» si se aceptó tal cual, «Corregido» si se cambió algo, con la confianza de la propuesta e historial. Después hay dos caminos:
+  - mover con una mudanza normal (con registro y deshacer). Si la mudanza tiene conflictos no se mueve nada y la fila se quita, así que el grupo sigue en la bandeja;
+  - «Solo agregar al catálogo», que deja la fila pendiente de mover.
+- **Juntar con un modelo**: si la ruta cae dentro de la carpeta de un modelo que ya está en su lugar (por ejemplo, unas cabezas extra de un modelo que ya se tiene), los archivos se mueven a esa carpeta, en la subcarpeta que se ponga, y pasan a ser de ese modelo. También se puede deshacer.
+- «No mover» deja el grupo donde está y ya no lo propone. Se pueden ver los descartados y volver a proponerlos.
+- Comprimidos:
+  - se ve el contenido del zip antes de extraerlo;
+  - al extraerlo se comprueba el CRC de cada archivo. Se quita la carpeta repetida de la raíz (`Pack/…`) y la basura de macOS (`__MACOSX`, `.DS_Store`). Se extrae junto al zip, en una carpeta con su nombre, y el zip queda dentro de esa carpeta. Un zip dañado no deja nada a medias;
+  - al aprobar, el zip ya extraído se manda a la ubicación de frío predeterminada (solo ese archivo), se verifica por MD5 y se pasa a la papelera de la app. Si no hay ubicación predeterminada, la app lo avisa antes de tocar nada;
+  - los .rar y .7z se listan pero no se extraen desde la app.
+- La carpeta `Por catalogar` la crea el usuario dentro de la colección, junto a Wargames y DND. Mientras no exista, la página lo dice.
+- Una fila de sueltos solo ocupa los archivos sueltos de su carpeta: ya no impide mover otro modelo a una subcarpeta suya. Esto aplica también a las mudanzas normales.
 
 ### 5.4 Miniaturas y visor 3D
 - THU-1. Una miniatura por malla (las 35 mil):
@@ -350,7 +369,8 @@ Son tablas de SQLite; las tablas de unión se escriben con `↔`.
 - `bibliotecas`, `escaneos`, `trabajos`, `trabajos/eventos` (SSE)
 - `modelos`, `modelos/{id}`, `modelos/{id}/archivos`, `modelos/{id}/placas`
 - `archivos/{id}`, `archivos/{id}/miniatura`, `archivos/{id}/malla`, `archivos/{id}/descarga`
-- `etiquetas`, `mudanzas` (plan, ejecutar, deshacer), `bandeja`
+- `etiquetas`, `mudanzas` (plan, ejecutar, deshacer)
+- `bandeja` (`?ver=todos` incluye los de «No mover»), `bandeja/grupo` (archivos y contenido de los zip), `bandeja/revisar`, `bandeja/aprobar` (fila nueva o `juntar_con`; la mudanza y el comprimido a frío corren en segundo plano), `bandeja/descartar`, `bandeja/volver`, `bandeja/extraer`
 - `placas` (lista con filtros; crear a mano), `placas/resumen`, `placas/detectar`, `placas/confirmar`, `placas/{id}` (ficha, editar, borrar), `placas/{id}/portada`, `placas/{id}/archivos`, `placas/{id}/modelos/{modelo_id}`
 - `frio/resumen`, `frio/ubicaciones` (crear; `/{id}` editar, `/probar`, `/listar`), `frio/modelos/{id}` (estado, `/plan`, `/subir`, `/quitar`, `/traer`), `frio/transferencias`, `papelera`, `papelera/{id}` (`/restaurar`, `/vaciar`)
 - `impresoras`, `impresoras/{id}`, `materiales`, `materiales/{id}`, `perfiles` (filtra por impresora o material), `perfiles/campos`, `perfiles/{id}`, `perfiles/{id}/archivos`, `archivos/buscar`, `taller/resumen`, `taller/importar` (ver y ejecutar)
@@ -394,7 +414,7 @@ Son las mismas reglas con las que se limpió la colección:
 
 Cada fase termina con algo que se puede usar y se prueba primero en esta PC.
 
-**Avance:** fases 0 a 8 terminadas (26 de noviembre de 2026). La 0 y la 1 se probaron con la colección real; las mudanzas de la 2, en colecciones de prueba (mover y deshacer dejan todo idéntico), porque en la colección real no hay nada pendiente de mover. Las miniaturas de la 3 se generaron para los 66 modelos de Necrons (999 archivos en 2 min 46 s, sin fallas, 33 MB de caché); el visor 3D falta verlo en un navegador con WebGL.
+**Avance:** fases 0 a 9 terminadas (27 de noviembre de 2026). La 0 y la 1 se probaron con la colección real; las mudanzas de la 2, en colecciones de prueba (mover y deshacer dejan todo idéntico), porque en la colección real no hay nada pendiente de mover. Las miniaturas de la 3 se generaron para los 66 modelos de Necrons (999 archivos en 2 min 46 s, sin fallas, 33 MB de caché); el visor 3D falta verlo en un navegador con WebGL.
 
 Fase 4 con la colección real:
 - 1,096 placas detectadas a partir de 1,212 archivos: 1,028 escenas, 47 laminados y 137 autoguardados.
@@ -431,6 +451,12 @@ Fase 8, prueba real en Drive (con permiso del usuario, sobre una copia):
 - Se vació la papelera (la app volvió a comprobar Drive) y se trajo de regreso en 6 s: los 5 archivos volvieron a sus rutas con los mismos MD5 que los originales. El modelo va a Drive y regresa idéntico.
 - Al final se borró de Drive la carpeta `_prueba-app` (a la papelera de Drive).
 
+Fase 9 (probada en una copia de la base, con una colección de prueba y un disco de prueba como frío):
+- Con el catálogo real, «Big Mek Extras» se propuso como Big Mek (DakkaDakka) con confianza alta, y se juntó con ese modelo en la subcarpeta «Extras»: 3 archivos movidos y las carpetas vacías quitadas de la bandeja.
+- «Lychguard Pack.zip» se extrajo (3 archivos; sin la carpeta repetida ni la basura de macOS) y se aprobó con otro estudio como modelo nuevo («Corregido»). El zip subió al disco de prueba y pasó a la papelera con el mismo MD5 en los dos lados.
+- «Canoptek Reanimator (DakkaDakka)» se aprobó tal cual («OK») y se movió; «Hexmark Destroyer», puesto directo en su lugar, se agregó sin mover nada. «No mover» y «volver a proponer» funcionan.
+- En la colección real todavía no existe la carpeta `Por catalogar`, y hoy no hay archivos sin modelo.
+
 | Fase | Qué incluye | Terminada cuando |
 |---|---|---|
 | 0. Base | Repo, Axum + SQLite + migraciones, React + Vite, login, CI (cargo test, clippy, build del frontend), unidad de systemd, Tailscale | Se entra con contraseña desde el celular por Tailscale y se ve la página de inicio |
@@ -455,6 +481,7 @@ La lectura del almacenamiento frío entra desde la fase 1, porque ya hay modelos
 5. **Canales de venta**: la fase 7 exporta a PDF e imagen PNG (WhatsApp y redes). ¿Hace falta otro formato, por ejemplo para publicar en Mercado Libre?
 6. **Placas nuevas**: ¿dónde guardas las escenas y laminados que haces en Lychee o Chitubox? Hace falta una convención para que la app los encuentre. Hoy están junto a los modelos (las Battle Sisters, el Daemon Prince, el Judiciar…) y la app las detecta ahí; la convención decide además dónde se guardan las que se suban desde la app.
 7. **Respaldo de la base**: ¿basta una copia diaria en Drive?
+8. **Comprimidos .rar y .7z** en la bandeja: hoy se listan pero no se extraen desde la app. ¿Hace falta extraerlos (con `unrar` o `7z` instalados en el mini PC) o se extraen a mano?
 
 ## 13. Fuera de alcance por ahora
 
