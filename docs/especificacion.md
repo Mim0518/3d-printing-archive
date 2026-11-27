@@ -1,6 +1,6 @@
 # 3D Printing Archive: especificación
 
-Versión 0.8, borrador del 26 de noviembre de 2026. La app se va a construir por fases, y este documento crece con ella. Lo que todavía no está decidido está en la sección 12.
+Versión 0.9, borrador del 26 de noviembre de 2026. La app se va a construir por fases, y este documento crece con ella. Lo que todavía no está decidido está en la sección 12.
 
 ## 1. Objetivo
 
@@ -201,6 +201,16 @@ Pendiente:
 - STK-3. Registrar una impresión (placa, impresora, material, fecha, resultado y consumo) suma a las existencias las piezas de la placa según sus cantidades. Si falló, se registra la merma.
 - STK-4. Vista de existencias por modelo, facción y ubicación, con alertas de existencia baja de lo que más se vende.
 
+Hecho en la fase 6:
+- Una existencia es un modelo con un acabado (sin pintar, con imprimación o pintada) en un lugar (texto libre, por ejemplo «Caja 3»). Se cuenta en miniaturas del modelo: si un modelo es una escuadra, se cuentan escuadras (lo mismo que la cantidad de la placa).
+- Movimientos: entrada por impresión, merma, ajuste del conteo y los pares de un cambio de acabado (pintar) o de lugar. La cantidad nunca queda en negativo. Su costo es el promedio de sus entradas.
+- Registrar una impresión desde la placa: la app propone la impresora (elegida, reconocida por el laminado o la de la última vez), el perfil (elegido, reconocido o el normal de la impresora), el material del perfil, y el consumo y el tiempo del laminado (o de la última impresión). Se eligen cuántas miniaturas salieron bien de cada modelo, su acabado y su lugar. La primera impresión marca la placa como probada o fallida. Si se lleva la cuenta de lo que queda del material, se descuenta.
+- Deshacer una impresión mal registrada: saca sus miniaturas si siguen ahí (si ya se pintaron o se movieron, avisa) y devuelve el material.
+- Miniaturas que ya tenías: se agregan a mano con su costo, si se sabe.
+- Precio de venta puesto a mano por existencia (si no, el sugerido) y mínimo para avisar.
+- Vistas: existencias con filtros (juego, acabado, lugar, bajo el mínimo), historial de impresiones, y en la ficha del modelo sus existencias, su costo promedio y el precio sugerido de cada acabado.
+- Pendiente: existencias por pieza suelta (no por modelo completo), y las alertas de lo que más se vende, que necesitan las ventas (fase 7).
+
 ### 5.9 Costos y precio
 - CST-1. El costo de material de una placa sale del consumo (del laminador o capturado) por el precio del material. Se reparte entre sus piezas según el volumen de cada malla o por partes iguales.
 - CST-2. Costos que se pueden configurar:
@@ -211,6 +221,13 @@ Pendiente:
   - empaque.
 - CST-3. Precio sugerido por pieza o por colección = costo × margen. Se puede ajustar a mano y se guarda el precio con que se vendió.
 - CST-4. Moneda MXN por omisión (se puede configurar).
+
+Hecho en la fase 6:
+- Costo de una impresión = material (consumo × precio por ml o por g; pasa de gramos a mililitros con la densidad) + luz (potencia de la impresora × tiempo × precio del kWh) + limpieza (fija por impresión, una para resina y otra para FDM) + fallas (un porcentaje de lo anterior). Se reparte por partes iguales entre las miniaturas que salieron bien. Lo que falta (un precio, la potencia, el tiempo) no se cuenta y se avisa.
+- Cada impresión guarda su costo con los precios de ese día: cambiar los ajustes después no cambia lo registrado.
+- Precio sugerido = (costo + imprimación, pintura y horas de mano de obra según el acabado) × margen + empaque, redondeado hacia arriba al peso.
+- Los ajustes se capturan en Existencias → Costos. Vacíos no se cuentan.
+- Pendiente: repartir por el volumen de cada malla (hace falta calcularlo) y el costo de una colección (fase 7).
 
 ### 5.10 Pedidos y clientes
 - ORD-1. Clientes: nombre, contacto (WhatsApp, teléfono, correo o red social) y notas.
@@ -244,11 +261,11 @@ Son tablas de SQLite; las tablas de unión se escriben con `↔`.
   - `datos_placa` (archivo_id, clave, formato, es_placa, vista_previa, máquina, resolución, capa, exposición, capas, alto, tiempo, volumen, peso, número de placas, error): lo que se leyó de cada escena o laminado.
 - `ubicaciones_frio` (id, nombre, tipo: drive | disco_externo, remoto o uuid, ruta base) y `copias` (archivo o paquete, ubicación, ruta, md5, verificado_en, estado). Para los comprimidos, `paquete_contenido` (las entradas de cada uno).
 - `impresoras` (nombre, tecnología, marca, modelo, volumen, boquilla, pantalla, pixel, potencia, carpeta, perfil normal, en uso, notas, clave de importación), `materiales` (tipo, marca, nombre, subtipo, color, presentación, precio, densidad, diámetro, queda, en uso, notas), `perfiles` (impresora_id, material_id, capa, parametros JSON, version, en uso, notas, origen) ↔ `perfil_archivos`, y `perfil_versiones` (cómo era cada perfil antes de cambiar sus valores). Las placas guardan impresora_id, material_id y perfil_id elegidos a mano.
-- `impresiones` (placa_id, impresora_id, material_id, fecha, resultado, consumo, tiempo_s, pedido_id)
-- `existencias` (modelo_id, archivo_id, acabado, ubicacion_fisica, costo_unitario) y `movimientos_existencia` (existencia_id, delta, motivo, referencia, fecha)
+- `impresiones` (placa_id, impresora_id, material_id, perfil_id y su versión, fecha, resultado: bien | parcial | fallida, consumo y unidad, de dónde salió el consumo, tiempo, costo de material, luz, limpieza y fallas, total, miniaturas buenas, material descontado, notas). En la fase 7 se agrega pedido_id.
+- `existencias` (modelo_id, acabado, ubicación, precio a mano, mínimo, notas; una por modelo, acabado y lugar) y `movimientos` (existencia_id, delta, motivo: impresion | venta | merma | ajuste | acabado | traslado, costo unitario de las entradas, impresion_id, par_id, notas, usuario, fecha)
 - `clientes`, `pedidos` (cliente_id, estado, fechas, total, notas), `pedido_piezas` (modelo, existencia o colección; cantidad, acabado, precio), `pagos`
 - `colecciones_venta` ↔ `coleccion_modelos` (modelo_id, cantidad, acabado, nota), con sus fotos
-- `ajustes_costos` (luz, limpieza, fallas, mano de obra, margen, moneda)
+- `ajustes` (clave y valor: precio del kWh, limpieza de resina y de FDM, fallas, mano de obra, imprimación, pintura, horas de pintura, empaque, margen y moneda)
 - `trabajos` (tipo: escaneo | miniaturas | transferencia | mudanza; estado, progreso, registro) y `registro_archivos` (lote, acción, origen, destino, inode, resultado). Este último sirve para deshacer.
 
 ## 7. Arquitectura
@@ -305,8 +322,8 @@ Son tablas de SQLite; las tablas de unión se escriben con `↔`.
 - `placas` (lista con filtros; crear a mano), `placas/resumen`, `placas/detectar`, `placas/confirmar`, `placas/{id}` (ficha, editar, borrar), `placas/{id}/portada`, `placas/{id}/archivos`, `placas/{id}/modelos/{modelo_id}`
 - `frio/ubicaciones`, `frio/transferencias`
 - `impresoras`, `impresoras/{id}`, `materiales`, `materiales/{id}`, `perfiles` (filtra por impresora o material), `perfiles/campos`, `perfiles/{id}`, `perfiles/{id}/archivos`, `archivos/buscar`, `taller/resumen`, `taller/importar` (ver y ejecutar)
-- `impresiones`
-- `existencias`, `existencias/movimientos`
+- `impresiones` (historial con filtros; registrar), `impresiones/calcular`, `impresiones/{id}` (ver, deshacer), `placas/{id}/impresion` (lo que se propone y cuánto costaría)
+- `existencias` (lista con filtros; agregar a mano), `existencias/resumen`, `existencias/{id}` (ficha, precio, mínimo), `existencias/{id}/movimientos` (merma, ajuste), `existencias/{id}/mover` (acabado o lugar), `modelos/{id}/existencias`, `ajustes/costos`
 - `clientes`, `pedidos`, `pagos`
 - `colecciones`, `colecciones/{id}/exportar`
 - `exportar/catalogo.csv`
@@ -345,7 +362,7 @@ Son las mismas reglas con las que se limpió la colección:
 
 Cada fase termina con algo que se puede usar y se prueba primero en esta PC.
 
-**Avance:** fases 0 a 5 terminadas (26 de noviembre de 2026). La 0 y la 1 se probaron con la colección real; las mudanzas de la 2, en colecciones de prueba (mover y deshacer dejan todo idéntico), porque en la colección real no hay nada pendiente de mover. Las miniaturas de la 3 se generaron para los 66 modelos de Necrons (999 archivos en 2 min 46 s, sin fallas, 33 MB de caché); el visor 3D falta verlo en un navegador con WebGL.
+**Avance:** fases 0 a 6 terminadas (26 de noviembre de 2026). La 0 y la 1 se probaron con la colección real; las mudanzas de la 2, en colecciones de prueba (mover y deshacer dejan todo idéntico), porque en la colección real no hay nada pendiente de mover. Las miniaturas de la 3 se generaron para los 66 modelos de Necrons (999 archivos en 2 min 46 s, sin fallas, 33 MB de caché); el visor 3D falta verlo en un navegador con WebGL.
 
 Fase 4 con la colección real:
 - 1,096 placas detectadas a partir de 1,212 archivos: 1,028 escenas, 47 laminados y 137 autoguardados.
@@ -363,6 +380,12 @@ Fase 5 con la colección real (probada en una copia de la base):
 - Precios por revisar: la Water Wash de Anycubic ($23.99) y el ML PLA Básico ($20 por kg) parecen en dólares; el PETG Barato no trae precio.
 - La Mono 4 reconoce sus 3 laminados de prueba (`Printers/SLA/Photon Mono 4`). Ninguno coincide con un perfil: son pruebas de 1.5 a 3.2 s.
 - Falta que el usuario haga la importación en su base y revise los precios.
+
+Fase 6 (probada en una copia de la base, con los perfiles importados y costos de prueba):
+- Se registró una impresión del Daemon Prince en la Photon Mono 4 con la Sunlu: 35 ml y 2 h 30 min dieron $15.30 de material, $0.22 de luz, $12 de limpieza y $4.13 de fallas (15 %), $31.65 en total. Precio sugerido sin pintar: $31.65 × 3 + $4 de empaque = $99.
+- Al pintarla pasó a «pintada» con el mismo costo y un precio de $498: ($31.65 + $3 de imprimación + $10 de pintura + 1.5 h × $80) × 3 + $4.
+- La placa quedó como probada, y la siguiente vez propone la misma impresora, perfil, material, consumo y tiempo.
+- Tu base de desarrollo tiene las tablas nuevas pero ninguna impresión, existencia ni ajuste de costos: los valores de la prueba eran inventados.
 
 | Fase | Qué incluye | Terminada cuando |
 |---|---|---|
@@ -383,8 +406,8 @@ La lectura del almacenamiento frío entra desde la fase 1, porque ya hay modelos
 
 1. **Disco externo** (se ve después): ¿de qué tamaño es, con qué sistema de archivos y va conectado al mini PC o se conecta solo a veces?
 2. **Formato en frío** para lo nuevo: ¿la carpeta tal cual o un comprimido por modelo? Lo que ya está en Drive son comprimidos.
-3. **Existencias**: ¿se cuentan por miniatura suelta o por kit o escuadra? ¿Qué acabados manejas? ¿Tienes cajas o ubicaciones con nombre?
-4. **Costos**: precio de la luz, tarifa de mano de obra o pintura, margen y porcentaje de fallas que usas hoy.
+3. **Existencias** (la fase 6 ya permite lo más común; confirmar): se cuentan en unidades del modelo (si un modelo es una escuadra, escuadras), con tres acabados (sin pintar, con imprimación, pintada) y lugares de texto libre. ¿Hace falta contar piezas sueltas o más acabados?
+4. **Costos**: se capturan en Existencias → Costos (luz, limpieza, fallas, mano de obra, pintura, empaque y margen). Falta que pongas los tuyos.
 5. **Canales de venta**: WhatsApp, Facebook, Mercado Libre… Esto decide los formatos de exportación de las colecciones.
 6. **Placas nuevas**: ¿dónde guardas las escenas y laminados que haces en Lychee o Chitubox? Hace falta una convención para que la app los encuentre. Hoy están junto a los modelos (las Battle Sisters, el Daemon Prince, el Judiciar…) y la app las detecta ahí; la convención decide además dónde se guardan las que se suban desde la app.
 7. **Respaldo de la base**: ¿basta una copia diaria en Drive?

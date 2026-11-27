@@ -13,12 +13,12 @@ Tecnología:
 - Backend: Rust (Axum + SQLite). Frontend: React + Vite + TypeScript (Mantine).
 - Corre en un mini PC en casa; desde fuera se entra por Tailscale.
 
-Estado: **fase 5**. Impresoras, materiales y perfiles:
-- impresoras (resina y FDM), materiales (resinas y filamentos, con precio y densidad) y perfiles de impresión con su historial de versiones y sus archivos del laminador;
-- se importan de los archivos de la colección: escenas y perfiles de Photon Workshop, paquetes de Orca y perfiles de Lychee;
-- cada placa sabe para qué impresora es (por la pantalla de su laminado) y con qué perfil y material se imprime.
+Estado: **fase 6**. Existencias y costos:
+- se registra cada impresión de una placa (impresora, perfil, material, consumo, tiempo y cómo salió) con lo que costó: material, luz, limpieza y fallas;
+- las miniaturas que salen bien entran a las existencias, por modelo, acabado (sin pintar, con imprimación o pintada) y lugar; la cantidad es la suma de sus movimientos (impresiones, mermas, ajustes, cambios de acabado o de lugar);
+- precio sugerido por miniatura según el costo, el acabado, el margen y el empaque.
 
-Fases anteriores: placas y escenas ligadas a sus modelos; miniaturas con f3d, portadas y visor 3D; catálogo editable con etiquetas, historial y mudanzas con deshacer. Ver la [especificación](docs/especificacion.md) y la [guía de instalación](deploy/README.md).
+Fases anteriores: impresoras, materiales y perfiles importados de Photon Workshop, Orca y Lychee; placas y escenas ligadas a sus modelos; miniaturas con f3d, portadas y visor 3D; catálogo editable con etiquetas, historial y mudanzas con deshacer. Ver la [especificación](docs/especificacion.md) y la [guía de instalación](deploy/README.md).
 
 ## Desarrollo
 
