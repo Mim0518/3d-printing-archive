@@ -1,6 +1,6 @@
 # 3D Printing Archive: especificación
 
-Versión 1.0, borrador del 26 de noviembre de 2026. La app se va a construir por fases, y este documento crece con ella. Lo que todavía no está decidido está en la sección 12.
+Versión 1.1, borrador del 26 de noviembre de 2026. La app se va a construir por fases, y este documento crece con ella. Lo que todavía no está decidido está en la sección 12.
 
 ## 1. Objetivo
 
@@ -159,6 +159,19 @@ El motivo principal es el inventario para vender impresiones: hoy es difícil ll
 - CLD-6. El disco externo se puede consultar aunque no esté conectado (catálogo sin conexión). Cuando se conecta, se puede verificar y copiar.
 - CLD-7. Las transferencias son trabajos en segundo plano, con progreso, registro y reintento.
 
+Hecho en la fase 8:
+- Decisiones del usuario: lo nuevo va como **carpeta tal cual** (cada archivo con su misma ruta de la colección) en **`DriveMemo:3DP-archivo`**, que ya seguía las rutas de la colección. Es la ubicación predeterminada; `3DP-cuarentena` queda solo de lectura.
+- Ubicaciones: remotos de rclone (`Nombre:carpeta`, que el usuario configura con `rclone config`; la app nunca lee sus tokens) y discos externos (la carpeta donde se montan y un archivo `.archivo-3d-ubicacion` con su identificador, para no confundir un disco con otro). Se prueban, se marcan como destino y se vuelven a listar con su MD5 (lo nuevo se liga al modelo cuya carpeta lo contiene; lo que ya no aparece queda como «falta»).
+- Mandar un modelo: calcula el MD5 de cada archivo (guardado en caché mientras no cambie), sube solo lo que no está igual, vuelve a listar el destino y compara el MD5 de cada archivo. Un archivo que cambió desde el último escaneo no se manda (hay que escanear antes).
+- Quitar la copia local: solo lo que tiene en el destino su mismo MD5, comprobado justo antes; va a la papelera de la app, `<colección>/.archivo-papelera/<lote>/<ruta>`, con `rename` en el mismo disco (instantáneo, respeta los enlaces duros). Si al mandar hubo errores, no se quita nada.
+- Papelera: cada lote se restaura (nunca sobrescribe; lo que choca se avisa) o se vacía. Vaciar pide escribir «borrar para siempre» y vuelve a listar el frío: si un archivo ya no está con su mismo MD5, no se borra nada. Avisa cuánto espacio no se libera por los enlaces duros.
+- Traer: baja a `<colección>/.archivo-entrante/<transferencia>/`, compara el MD5 con el registrado y pone cada archivo en la carpeta del modelo (las copias de la app, en su misma ruta; las importadas de la limpieza, con su ruta relativa a la carpeta común del modelo, porque venían de la organización anterior). Los zip se extraen comprobando el CRC de cada entrada en una carpeta con su nombre; los .rar y .7z se traen sin extraer. Nunca sobrescribe: lo igual se omite y lo distinto se queda en la carpeta de entrada y se avisa. Al final se escanea.
+- Se pueden traer solo algunas piezas (se eligen en la lista de copias del modelo).
+- Estado de cada modelo: solo en el disco, solo en frío, en los dos o parte en frío.
+- Transferencias registradas con su resultado; los trabajos van de uno en uno.
+- El escaneo no entra a `.archivo-papelera` ni a `.archivo-entrante`.
+- Pendiente: el disco externo (pregunta 1), cuando exista; subir comprimidos por modelo (se eligió carpeta tal cual); un botón para borrar de frío lo que ya no se quiera.
+
 ### 5.7 Impresoras, materiales y perfiles
 - PRN-1. Impresoras: nombre, tecnología (FDM o resina), marca y modelo, volumen de impresión, boquilla o pantalla, notas y documentos (manuales, mejoras, calibraciones).
 - PRN-2. Materiales:
@@ -277,7 +290,8 @@ Son tablas de SQLite; las tablas de unión se escriben con `↔`.
   - ↔ `placa_archivos` (archivo_id, rol: escena | laminado | autoguardado, auto). Cada archivo es de una sola placa; `auto` = 0 si el usuario lo puso ahí.
   - ↔ `placa_modelos` (modelo_id, estado: sugerido | confirmado | rechazado, origen: carpeta | nombre | manual, cantidad).
   - `datos_placa` (archivo_id, clave, formato, es_placa, vista_previa, máquina, resolución, capa, exposición, capas, alto, tiempo, volumen, peso, número de placas, error): lo que se leyó de cada escena o laminado.
-- `ubicaciones_frio` (id, nombre, tipo: drive | disco_externo, remoto o uuid, ruta base) y `copias` (archivo o paquete, ubicación, ruta, md5, verificado_en, estado). Para los comprimidos, `paquete_contenido` (las entradas de cada uno).
+- `ubicaciones_frio` (nombre, tipo: drive | disco_externo, remoto, ruta base, marca, escribible, predeterminada, último listado) y `copias_frio` (ubicación, ruta, bytes, md5, ruta original, modelo, archivo, verificado, estado presente | falta, visto en, origen importada | app | listado). Para los comprimidos, `copias_contenido`. `hashes` guarda el MD5 de cada archivo del disco mientras no cambie su clave.
+- `transferencias` (modelo, ubicación, subir | traer, estado, quitar local, archivos, bytes, verificados, lote de papelera, trabajo, resultado) y `papelera_lotes` ↔ `papelera_archivos` (ruta, bytes, md5, nlink, estado).
 - `impresoras` (nombre, tecnología, marca, modelo, volumen, boquilla, pantalla, pixel, potencia, carpeta, perfil normal, en uso, notas, clave de importación), `materiales` (tipo, marca, nombre, subtipo, color, presentación, precio, densidad, diámetro, queda, en uso, notas), `perfiles` (impresora_id, material_id, capa, parametros JSON, version, en uso, notas, origen) ↔ `perfil_archivos`, y `perfil_versiones` (cómo era cada perfil antes de cambiar sus valores). Las placas guardan impresora_id, material_id y perfil_id elegidos a mano.
 - `impresiones` (placa_id, impresora_id, material_id, perfil_id y su versión, fecha, resultado: bien | parcial | fallida, consumo y unidad, de dónde salió el consumo, tiempo, costo de material, luz, limpieza y fallas, total, miniaturas buenas, material descontado, notas). En la fase 7 se agrega pedido_id.
 - `existencias` (modelo_id, acabado, ubicación, precio a mano, mínimo, notas; una por modelo, acabado y lugar) y `movimientos` (existencia_id, delta, motivo: impresion | venta | merma | ajuste | acabado | traslado, costo unitario de las entradas, impresion_id, par_id, notas, usuario, fecha)
@@ -338,7 +352,7 @@ Son tablas de SQLite; las tablas de unión se escriben con `↔`.
 - `archivos/{id}`, `archivos/{id}/miniatura`, `archivos/{id}/malla`, `archivos/{id}/descarga`
 - `etiquetas`, `mudanzas` (plan, ejecutar, deshacer), `bandeja`
 - `placas` (lista con filtros; crear a mano), `placas/resumen`, `placas/detectar`, `placas/confirmar`, `placas/{id}` (ficha, editar, borrar), `placas/{id}/portada`, `placas/{id}/archivos`, `placas/{id}/modelos/{modelo_id}`
-- `frio/ubicaciones`, `frio/transferencias`
+- `frio/resumen`, `frio/ubicaciones` (crear; `/{id}` editar, `/probar`, `/listar`), `frio/modelos/{id}` (estado, `/plan`, `/subir`, `/quitar`, `/traer`), `frio/transferencias`, `papelera`, `papelera/{id}` (`/restaurar`, `/vaciar`)
 - `impresoras`, `impresoras/{id}`, `materiales`, `materiales/{id}`, `perfiles` (filtra por impresora o material), `perfiles/campos`, `perfiles/{id}`, `perfiles/{id}/archivos`, `archivos/buscar`, `taller/resumen`, `taller/importar` (ver y ejecutar)
 - `impresiones` (historial con filtros; registrar), `impresiones/calcular`, `impresiones/{id}` (ver, deshacer), `placas/{id}/impresion` (lo que se propone y cuánto costaría)
 - `existencias` (lista con filtros; agregar a mano), `existencias/resumen`, `existencias/{id}` (ficha, precio, mínimo), `existencias/{id}/movimientos` (merma, ajuste), `existencias/{id}/mover` (acabado o lugar), `modelos/{id}/existencias`, `ajustes/costos`
@@ -380,7 +394,7 @@ Son las mismas reglas con las que se limpió la colección:
 
 Cada fase termina con algo que se puede usar y se prueba primero en esta PC.
 
-**Avance:** fases 0 a 7 terminadas (26 de noviembre de 2026). La 0 y la 1 se probaron con la colección real; las mudanzas de la 2, en colecciones de prueba (mover y deshacer dejan todo idéntico), porque en la colección real no hay nada pendiente de mover. Las miniaturas de la 3 se generaron para los 66 modelos de Necrons (999 archivos en 2 min 46 s, sin fallas, 33 MB de caché); el visor 3D falta verlo en un navegador con WebGL.
+**Avance:** fases 0 a 8 terminadas (26 de noviembre de 2026). La 0 y la 1 se probaron con la colección real; las mudanzas de la 2, en colecciones de prueba (mover y deshacer dejan todo idéntico), porque en la colección real no hay nada pendiente de mover. Las miniaturas de la 3 se generaron para los 66 modelos de Necrons (999 archivos en 2 min 46 s, sin fallas, 33 MB de caché); el visor 3D falta verlo en un navegador con WebGL.
 
 Fase 4 con la colección real:
 - 1,096 placas detectadas a partir de 1,212 archivos: 1,028 escenas, 47 laminados y 137 autoguardados.
@@ -411,6 +425,12 @@ Fase 7 (probada en una copia de la base, con costos y existencias de prueba):
 - Convertida en pedido, se apartaron los 2 Ghost Ark de la Caja 2 y el Silent King de la vitrina; falta 1 Ghost Ark por imprimir.
 - Con la colección real, ignorar los `.lyt` dejó 1,050 placas (se quitaron 46 de solo autoguardados) y ningún `.lyt` ligado a una placa.
 
+Fase 8, prueba real en Drive (con permiso del usuario, sobre una copia):
+- Se copió el modelo «Cataphractii Pauldrons» (5 archivos, 11 MB) a una colección de prueba y se mandó a `DriveMemo:3DP-archivo/_prueba-app` con «quitar del disco»: subió y verificó los 5 por MD5 en 14 s y los pasó a la papelera.
+- Un `rclone md5sum` aparte confirmó que Drive tenía los mismos MD5 que los originales.
+- Se vació la papelera (la app volvió a comprobar Drive) y se trajo de regreso en 6 s: los 5 archivos volvieron a sus rutas con los mismos MD5 que los originales. El modelo va a Drive y regresa idéntico.
+- Al final se borró de Drive la carpeta `_prueba-app` (a la papelera de Drive).
+
 | Fase | Qué incluye | Terminada cuando |
 |---|---|---|
 | 0. Base | Repo, Axum + SQLite + migraciones, React + Vite, login, CI (cargo test, clippy, build del frontend), unidad de systemd, Tailscale | Se entra con contraseña desde el celular por Tailscale y se ve la página de inicio |
@@ -429,7 +449,7 @@ La lectura del almacenamiento frío entra desde la fase 1, porque ya hay modelos
 ## 12. Preguntas abiertas
 
 1. **Disco externo** (se ve después): ¿de qué tamaño es, con qué sistema de archivos y va conectado al mini PC o se conecta solo a veces?
-2. **Formato en frío** para lo nuevo: ¿la carpeta tal cual o un comprimido por modelo? Lo que ya está en Drive son comprimidos.
+2. **Formato en frío** para lo nuevo: decidido en la fase 8, carpeta tal cual en `DriveMemo:3DP-archivo`.
 3. **Existencias** (la fase 6 ya permite lo más común; confirmar): se cuentan en unidades del modelo (si un modelo es una escuadra, escuadras), con tres acabados (sin pintar, con imprimación, pintada) y lugares de texto libre. ¿Hace falta contar piezas sueltas o más acabados?
 4. **Costos**: se capturan en Existencias → Costos (luz, limpieza, fallas, mano de obra, pintura, empaque y margen). Falta que pongas los tuyos.
 5. **Canales de venta**: la fase 7 exporta a PDF e imagen PNG (WhatsApp y redes). ¿Hace falta otro formato, por ejemplo para publicar en Mercado Libre?

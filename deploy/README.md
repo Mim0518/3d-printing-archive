@@ -69,6 +69,25 @@ sudo tailscale serve --bg 8080
 
 Abre `https://<nombre-del-equipo>.<tu-tailnet>.ts.net` en cualquier dispositivo de tu tailnet. La app no queda expuesta a internet: `tailscale serve` solo atiende la tailnet. Además pone HTTPS, por eso la cookie va con `ARCHIVO_COOKIE_SEGURA=1`.
 
+## 3.1 Almacenamiento frío (rclone)
+
+El servicio corre como el usuario `archivo`, así que rclone necesita su propia configuración. Configúrala tú, en
+la terminal del mini PC (la app nunca ve los tokens):
+
+```bash
+sudo -u archivo env RCLONE_CONFIG=/var/lib/printing-archive/rclone.conf rclone config
+sudo chmod 600 /var/lib/printing-archive/rclone.conf
+```
+
+Crea ahí el remoto `DriveMemo` (Google Drive) igual que en tu PC. El `.env` ya apunta `RCLONE_CONFIG` a ese archivo.
+Para probar: `sudo -u archivo env RCLONE_CONFIG=/var/lib/printing-archive/rclone.conf rclone lsd DriveMemo:`.
+
+Un disco externo se agrega desde la app (Almacenamiento frío → Agregar una ubicación) con la carpeta donde se
+monta; el usuario `archivo` debe poder leer y escribir ahí (añádela también a `ReadWritePaths` en la unidad).
+
+La papelera de la app vive dentro de la colección, en `/srv/3dp/.archivo-papelera` (mismo disco: mover es
+instantáneo y los enlaces duros se respetan). El escaneo no la ve.
+
 ## 4. Actualizar
 
 Baja el paquete nuevo y repite el paso 2.2 (sin el `.env` si no cambió). Luego:

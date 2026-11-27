@@ -13,7 +13,12 @@ Tecnología:
 - Backend: Rust (Axum + SQLite). Frontend: React + Vite + TypeScript (Mantine).
 - Corre en un mini PC en casa; desde fuera se entra por Tailscale.
 
-Estado: **fase 7**. Ventas:
+Estado: **fase 8**. Almacenamiento frío:
+- mandar un modelo a Google Drive (rclone) o a un disco externo, como carpeta tal cual, con verificación por MD5 de cada archivo;
+- quitar la copia local a la papelera de la app (se restaura o se vacía, con confirmación escrita y volviendo a comprobar la copia);
+- traer un modelo (o algunas piezas) de regreso, comprobando MD5 y CRC de los zip, sin sobrescribir nada.
+
+Fase 7, ventas:
 - clientes, pedidos (cotizado → confirmado → imprimiendo → listo → entregado, o cancelado) con pagos (anticipo y saldo), descuento y envío;
 - las piezas de un pedido se apartan de las existencias o se imprimen para él (lo que sale se aparta solo); cancelar o quitar una pieza las regresa;
 - colecciones de venta con fotos, precio (la suma o uno fijo) y si alcanzan las existencias; se mandan como PDF (hoja para imprimir) o imagen para WhatsApp, y se convierten en pedido;
